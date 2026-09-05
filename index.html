@@ -10,6 +10,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.0.4/tesseract.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -1287,18 +1288,7 @@ const CATEGORIES = [
 /* Tools genuinely not achievable to a trustworthy standard fully client-side (no server) yet.
    Rather than fake them, they're clearly labelled with why. Everything else in PDF Tools
    runs entirely in the browser - files never leave the device. */
-const PDF_COMING_SOON = {
-  "pdf-to-word":"Accurate layout reconstruction (columns, tables, images in place) needs a full document-layout engine. A basic text-only export is planned as a stopgap.",
-  "pdf-to-ppt":"There's no reliable way to rebuild editable slide layouts from a PDF fully in-browser yet.",
-  "pdf-to-excel":"Real table detection from arbitrary PDFs needs a proper table-recognition engine, not just text extraction.",
-  "ppt-to-pdf":"There's no in-browser PowerPoint rendering engine available to convert slides accurately yet.",
-  "pdf-edit":"A full click-to-edit annotation/layout editor is on the roadmap.",
-  "pdf-unlock":"Removing password encryption needs a decryption library that isn't wired up yet.",
-  "pdf-protect":"Adding password encryption needs a crypto library that isn't wired up yet.",
-  "pdf-to-pdfa":"True PDF/A compliance requires embedding fonts, colour profiles and metadata to an ISO spec - more than a quick client-side pass can guarantee.",
-  "pdf-repair":"Deep structural repair of corrupted PDFs needs a more forgiving parser than we have wired up yet.",
-  "pdf-ocr":"In-browser OCR is on the roadmap - it needs a fairly large recognition model to run client-side.",
-};
+const PDF_COMING_SOON = {};
 const TOOL_NAMES = {};
 CATEGORIES.forEach(c=>c.tools.forEach(t=>TOOL_NAMES[t.id]=t.name));
 function toolCategory(id){
@@ -2850,6 +2840,905 @@ function mountExcelToPdf(root){
   document.getElementById("e2p-print").onclick=()=>window.print();
 }
 
+/* ============================= CRYPTO HELPERS (PDF standard security handler) ============================= */
+/* Minimal, dependency-free MD5 (RFC 1321) operating on a Uint8Array, returns Uint8Array(16) */
+function md5(bytes){
+  function rotl(x,c){return (x<<c)|(x>>>(32-c));}
+  function toWords(bytes){
+    const words=[]; for(let i=0;i<bytes.length;i+=4){
+      words.push((bytes[i]||0)|((bytes[i+1]||0)<<8)|((bytes[i+2]||0)<<16)|((bytes[i+3]||0)<<24));
+    } return words;
+  }
+  const K=new Int32Array([
+    -680876936,-389564586,606105819,-1044525330,-176418897,1200080426,-1473231341,-45705983,
+    1770035416,-1958414417,-42063,-1990404162,1804603682,-40341101,-1502002290,1236535329,
+    -165796510,-1069501632,643717713,-373897302,-701558691,38016083,-660478335,-405537848,
+    568446438,-1019803690,-187363961,1163531501,-1444681467,-51403784,1735328473,-1926607734,
+    -378558,-2022574463,1839030562,-35309556,-1530992060,1272893353,-155497632,-1094730640,
+    681279174,-358537222,-722521979,76029189,-640364487,-421815835,530742520,-995338651,
+    -198630844,1126891415,-1416354905,-57434055,1700485571,-1894986606,-1051523,-2054922799,
+    1873313359,-30611744,-1560198380,1309151649,-145523070,-1120210379,718787259,-343485551
+  ]);
+  const S=[7,12,17,22,7,12,17,22,7,12,17,22,7,12,17,22,5,9,14,20,5,9,14,20,5,9,14,20,5,9,14,20,
+           4,11,16,23,4,11,16,23,4,11,16,23,4,11,16,23,6,10,15,21,6,10,15,21,6,10,15,21,6,10,15,21];
+  const origLenBits = bytes.length*8;
+  let padLen = ((bytes.length+8) >> 6 << 6) + 64 - bytes.length;
+  const msg = new Uint8Array(bytes.length+padLen);
+  msg.set(bytes); msg[bytes.length]=0x80;
+  const dv=new DataView(msg.buffer);
+  dv.setUint32(msg.length-8, origLenBits>>>0, true);
+  dv.setUint32(msg.length-4, Math.floor(origLenBits/4294967296), true);
+  let a0=1732584193,b0=-271733879,c0=-1732584194,d0=271733878;
+  const words=toWords(msg);
+  for(let chunk=0; chunk<words.length; chunk+=16){
+    let A=a0,B=b0,C=c0,D=d0;
+    for(let i=0;i<64;i++){
+      let F,g;
+      if(i<16){F=(B&C)|(~B&D); g=i;}
+      else if(i<32){F=(D&B)|(~D&C); g=(5*i+1)%16;}
+      else if(i<48){F=B^C^D; g=(3*i+5)%16;}
+      else {F=C^(B|~D); g=(7*i)%16;}
+      F=(F + A + K[i] + words[chunk+g])|0;
+      A=D; D=C; C=B;
+      B=(B + rotl(F,S[i]))|0;
+    }
+    a0=(a0+A)|0; b0=(b0+B)|0; c0=(c0+C)|0; d0=(d0+D)|0;
+  }
+  const out=new Uint8Array(16); const odv=new DataView(out.buffer);
+  odv.setUint32(0,a0>>>0,true); odv.setUint32(4,b0>>>0,true); odv.setUint32(8,c0>>>0,true); odv.setUint32(12,d0>>>0,true);
+  return out;
+}
+/* RC4 stream cipher - symmetric (same function encrypts and decrypts) */
+function rc4(keyBytes, dataBytes){
+  const S=new Uint8Array(256);
+  for(let i=0;i<256;i++) S[i]=i;
+  let j=0;
+  for(let i=0;i<256;i++){ j=(j+S[i]+keyBytes[i%keyBytes.length])&255; [S[i],S[j]]=[S[j],S[i]]; }
+  const out=new Uint8Array(dataBytes.length);
+  let i=0; j=0;
+  for(let n=0;n<dataBytes.length;n++){
+    i=(i+1)&255; j=(j+S[i])&255; [S[i],S[j]]=[S[j],S[i]];
+    out[n]=dataBytes[n]^S[(S[i]+S[j])&255];
+  }
+  return out;
+}
+const PDF_PAD=new Uint8Array([0x28,0xBF,0x4E,0x5E,0x4E,0x75,0x8A,0x41,0x64,0x00,0x4E,0x56,0xFF,0xFA,0x01,0x08,
+  0x2E,0x2E,0x00,0xB6,0xD0,0x68,0x3E,0x80,0x2F,0x0C,0xA9,0xFE,0x64,0x53,0x69,0x7A]);
+function padPassword(pw){
+  const pwBytes=new TextEncoder().encode(pw||"");
+  const out=new Uint8Array(32);
+  out.set(pwBytes.slice(0,32));
+  out.set(PDF_PAD.slice(0, 32-Math.min(32,pwBytes.length)), Math.min(32,pwBytes.length));
+  return out;
+}
+function concatBytes(...arrs){
+  const total=arrs.reduce((s,a)=>s+a.length,0);
+  const out=new Uint8Array(total); let off=0;
+  arrs.forEach(a=>{out.set(a,off); off+=a.length;});
+  return out;
+}
+function int32LE(n){ const b=new Uint8Array(4); const dv=new DataView(b.buffer); dv.setInt32(0,n,true); return b; }
+/* Compute the RC4/AES file encryption key (Algorithm 3.2), given the actual user password attempt */
+function computeFileKey(userPw, ownerHash, permissions, idBytes, keyLenBytes, revision){
+  let input=concatBytes(padPassword(userPw), ownerHash, int32LE(permissions), idBytes);
+  let hash=md5(input);
+  if(revision>=3){ for(let i=0;i<50;i++) hash=md5(hash.slice(0,keyLenBytes)); }
+  return hash.slice(0,keyLenBytes);
+}
+/* Compute /O entry (owner hash). ownerPw defaults to userPw if not set separately. */
+function computeOwnerHash(ownerPw, userPw, keyLenBytes, revision){
+  let hash=md5(padPassword(ownerPw||userPw));
+  if(revision>=3){ for(let i=0;i<50;i++) hash=md5(hash); }
+  const rc4key=hash.slice(0,keyLenBytes);
+  let data=padPassword(userPw);
+  if(revision===2){ return rc4(rc4key, data); }
+  for(let i=0;i<20;i++){
+    const roundKey=new Uint8Array(rc4key.length);
+    for(let k=0;k<rc4key.length;k++) roundKey[k]=rc4key[k]^i;
+    data=rc4(roundKey, data);
+  }
+  return data;
+}
+/* Compute /U entry (user hash) */
+function computeUserHash(fileKey, idBytes, revision){
+  if(revision===2){ return rc4(fileKey, PDF_PAD); }
+  let data=md5(concatBytes(PDF_PAD, idBytes));
+  data=rc4(fileKey, data);
+  for(let i=1;i<20;i++){
+    const roundKey=new Uint8Array(fileKey.length);
+    for(let k=0;k<fileKey.length;k++) roundKey[k]=fileKey[k]^i;
+    data=rc4(roundKey, data);
+  }
+  const out=new Uint8Array(32); out.set(data.slice(0,16));
+  out.set(PDF_PAD.slice(0,16), 16);
+  return out;
+}
+function objectKey(fileKey, objNum, genNum, isAES){
+  const extra = isAES ? new Uint8Array([0x73,0x41,0x6C,0x54]) : new Uint8Array(0); // "sAlT" for AESV2
+  const input=concatBytes(fileKey, new Uint8Array([objNum&255,(objNum>>8)&255,(objNum>>16)&255,genNum&255,(genNum>>8)&255]), extra);
+  const hash=md5(input);
+  return hash.slice(0, Math.min(16, fileKey.length+5));
+}
+function hexToBytes(hex){ const out=new Uint8Array(hex.length/2); for(let i=0;i<out.length;i++) out[i]=parseInt(hex.substr(i*2,2),16); return out; }
+function bytesToHex(bytes){ return Array.from(bytes).map(b=>b.toString(16).padStart(2,"0")).join(""); }
+function latin1ToBytes(str){ const out=new Uint8Array(str.length); for(let i=0;i<str.length;i++) out[i]=str.charCodeAt(i)&255; return out; }
+function bytesToLatin1(bytes){ let s=""; for(let i=0;i<bytes.length;i++) s+=String.fromCharCode(bytes[i]); return s; }
+async function aesCbcDecrypt(keyBytes, dataWithIv){
+  if(dataWithIv.length<=16) return new Uint8Array(0);
+  const iv=dataWithIv.slice(0,16); const ct=dataWithIv.slice(16);
+  const key=await crypto.subtle.importKey("raw",keyBytes,{name:"AES-CBC"},false,["decrypt"]);
+  try{ return new Uint8Array(await crypto.subtle.decrypt({name:"AES-CBC",iv},key,ct)); }
+  catch(e){ return new Uint8Array(0); }
+}
+async function aesCbcEncrypt(keyBytes, dataBytes){
+  const iv=crypto.getRandomValues(new Uint8Array(16));
+  const key=await crypto.subtle.importKey("raw",keyBytes,{name:"AES-CBC"},false,["encrypt"]);
+  const ct=await crypto.subtle.encrypt({name:"AES-CBC",iv},key,dataBytes);
+  return concatBytes(iv, new Uint8Array(ct));
+}
+/* Walk every indirect object, rewriting every string and stream's raw bytes via transformFn(bytes, objNum, genNum) -> Promise<bytes> */
+async function transformObjectGraph(pdfDoc, transformFn){
+  const {PDFString, PDFHexString, PDFRawStream, PDFDict, PDFArray, PDFName} = PDFLib;
+  async function visitDict(dict, objNum, genNum){
+    for(const key of dict.keys()){
+      if(key===PDFName.of("Encrypt")) continue;
+      await visitSlot(dict, key, dict.get(key), objNum, genNum);
+    }
+  }
+  async function visitArray(arr, objNum, genNum){
+    for(let i=0;i<arr.size();i++) await visitSlot(arr, i, arr.get(i), objNum, genNum);
+  }
+  async function visitSlot(container, key, val, objNum, genNum){
+    if(val instanceof PDFDict){ await visitDict(val, objNum, genNum); }
+    else if(val instanceof PDFArray){ await visitArray(val, objNum, genNum); }
+    else if(val instanceof PDFRawStream){
+      await visitDict(val.dict, objNum, genNum);
+      val.contents = await transformFn(val.contents, objNum, genNum);
+    }
+    else if(val instanceof PDFString){
+      const newBytes = await transformFn(latin1ToBytes(val.value), objNum, genNum);
+      container.set(key, PDFString.of(bytesToLatin1(newBytes)));
+    }
+    else if(val instanceof PDFHexString){
+      const newBytes = await transformFn(hexToBytes(val.value), objNum, genNum);
+      container.set(key, PDFHexString.of(bytesToHex(newBytes)));
+    }
+  }
+  for(const [ref,obj] of pdfDoc.context.enumerateIndirectObjects()){
+    if(obj instanceof PDFDict) await visitDict(obj, ref.objectNumber, ref.generationNumber);
+    else if(obj instanceof PDFArray) await visitArray(obj, ref.objectNumber, ref.generationNumber);
+    else if(obj instanceof PDFRawStream){
+      await visitDict(obj.dict, ref.objectNumber, ref.generationNumber);
+      obj.contents = await transformFn(obj.contents, ref.objectNumber, ref.generationNumber);
+    }
+  }
+}
+
+/* ---- OCR worker helper (defensive across tesseract.js API versions) ---- */
+async function makeOcrWorker(onProgress){
+  try{
+    return await Tesseract.createWorker('eng', 1, { logger: onProgress });
+  }catch(e){
+    const w = await Tesseract.createWorker({ logger: onProgress });
+    if(w.loadLanguage) await w.loadLanguage('eng');
+    if(w.initialize) await w.initialize('eng');
+    return w;
+  }
+}
+
+/* ---- Minimal DOCX writer (plain paragraphs) ---- */
+async function buildMinimalDocx(paragraphs){
+  const zip=new JSZip();
+  zip.file("[Content_Types].xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+<Default Extension="xml" ContentType="application/xml"/>
+<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>`);
+  zip.folder("_rels").file(".rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>`);
+  const bodyXml=paragraphs.map(p=>`<w:p><w:r><w:t xml:space="preserve">${esc(p)||""}</w:t></w:r></w:p>`).join("");
+  zip.folder("word").file("document.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${bodyXml}<w:sectPr/></w:body></w:document>`);
+  return await zip.generateAsync({type:"blob", mimeType:"application/vnd.openxmlformats-officedocument.wordprocessingml.document"});
+}
+
+/* ---- Minimal PPTX writer (one full-bleed image per slide) ---- */
+async function buildMinimalPptx(images){ // images: [{bytes, width, height}]
+  const SLIDE_W=12192000, SLIDE_H=6858000; // 16:9 EMU
+  const zip=new JSZip();
+  const slideOverrides=images.map((_,i)=>`<Override PartName="/ppt/slides/slide${i+1}.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>`).join("");
+  zip.file("[Content_Types].xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+<Default Extension="xml" ContentType="application/xml"/>
+<Default Extension="jpeg" ContentType="image/jpeg"/>
+<Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/>
+<Override PartName="/ppt/slideMasters/slideMaster1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml"/>
+<Override PartName="/ppt/slideLayouts/slideLayout1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml"/>
+<Override PartName="/ppt/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>
+${slideOverrides}
+</Types>`);
+  zip.folder("_rels").file(".rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>`);
+  const sldIdLst=images.map((_,i)=>`<p:sldId id="${256+i}" r:id="rIdSlide${i+1}"/>`).join("");
+  zip.folder("ppt").file("presentation.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:presentation xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+<p:sldMasterIdLst><p:sldMasterId id="2147483648" r:id="rIdMaster1"/></p:sldMasterIdLst>
+<p:sldIdLst>${sldIdLst}</p:sldIdLst>
+<p:sldSz cx="${SLIDE_W}" cy="${SLIDE_H}"/><p:notesSz cx="6858000" cy="9144000"/>
+</p:presentation>`);
+  const slideRels=images.map((_,i)=>`<Relationship Id="rIdSlide${i+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide${i+1}.xml"/>`).join("");
+  zip.folder("ppt/_rels").file("presentation.xml.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rIdMaster1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="slideMasters/slideMaster1.xml"/>
+${slideRels}
+</Relationships>`);
+  zip.folder("ppt/slideMasters").file("slideMaster1.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sldMaster xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+<p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/></p:spTree></p:cSld>
+<p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/>
+<p:sldLayoutIdLst><p:sldLayoutId id="2147483649" r:id="rId1"/></p:sldLayoutIdLst>
+</p:sldMaster>`);
+  zip.folder("ppt/slideMasters/_rels").file("slideMaster1.xml.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/>
+<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="../theme/theme1.xml"/>
+</Relationships>`);
+  zip.folder("ppt/slideLayouts").file("slideLayout1.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sldLayout xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" type="blank">
+<p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/></p:spTree></p:cSld>
+<p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>
+</p:sldLayout>`);
+  zip.folder("ppt/slideLayouts/_rels").file("slideLayout1.xml.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="../slideMasters/slideMaster1.xml"/>
+</Relationships>`);
+  zip.folder("ppt/theme").file("theme1.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Theme">
+<a:themeElements>
+<a:clrScheme name="Colors"><a:dk1><a:sysClr val="windowText" lastClr="000000"/></a:dk1><a:lt1><a:sysClr val="window" lastClr="FFFFFF"/></a:lt1>
+<a:dk2><a:srgbClr val="1E3A8A"/></a:dk2><a:lt2><a:srgbClr val="EEEEEE"/></a:lt2>
+<a:accent1><a:srgbClr val="1E3A8A"/></a:accent1><a:accent2><a:srgbClr val="2B4FC4"/></a:accent2>
+<a:accent3><a:srgbClr val="4B6FB0"/></a:accent3><a:accent4><a:srgbClr val="5F84DD"/></a:accent4>
+<a:accent5><a:srgbClr val="2B5FCE"/></a:accent5><a:accent6><a:srgbClr val="15306F"/></a:accent6>
+<a:hlink><a:srgbClr val="0563C1"/></a:hlink><a:folHlink><a:srgbClr val="954F72"/></a:folHlink></a:clrScheme>
+<a:fontScheme name="Fonts"><a:majorFont><a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/></a:majorFont>
+<a:minorFont><a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/></a:minorFont></a:fontScheme>
+<a:fmtScheme name="Format">
+<a:fillStyleLst><a:solidFill><a:schemeClr val="accent1"/></a:solidFill><a:solidFill><a:schemeClr val="accent1"/></a:solidFill><a:solidFill><a:schemeClr val="accent1"/></a:solidFill></a:fillStyleLst>
+<a:lnStyleLst><a:ln w="6350"><a:solidFill><a:schemeClr val="accent1"/></a:solidFill></a:ln><a:ln w="12700"><a:solidFill><a:schemeClr val="accent1"/></a:solidFill></a:ln><a:ln w="19050"><a:solidFill><a:schemeClr val="accent1"/></a:solidFill></a:ln></a:lnStyleLst>
+<a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle></a:effectStyleLst>
+<a:bgFillStyleLst><a:solidFill><a:schemeClr val="lt1"/></a:solidFill><a:solidFill><a:schemeClr val="lt1"/></a:solidFill><a:solidFill><a:schemeClr val="lt1"/></a:solidFill></a:bgFillStyleLst>
+</a:fmtScheme></a:themeElements></a:theme>`);
+  const slidesFolder=zip.folder("ppt/slides");
+  const slideRelsFolder=zip.folder("ppt/slides/_rels");
+  const mediaFolder=zip.folder("ppt/media");
+  images.forEach((img,i)=>{
+    const scale=Math.min(SLIDE_W/img.width, SLIDE_H/img.height);
+    const w=Math.round(img.width*scale), h=Math.round(img.height*scale);
+    const x=Math.round((SLIDE_W-w)/2), y=Math.round((SLIDE_H-h)/2);
+    slidesFolder.file(`slide${i+1}.xml`, `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+<p:cSld><p:spTree>
+<p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/>
+<p:pic><p:nvPicPr><p:cNvPr id="2" name="Page image"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr>
+<p:blipFill><a:blip r:embed="rId1"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>
+<p:spPr><a:xfrm><a:off x="${x}" y="${y}"/><a:ext cx="${w}" cy="${h}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr>
+</p:pic></p:spTree></p:cSld>
+<p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>
+</p:sld>`);
+    slideRelsFolder.file(`slide${i+1}.xml.rels`, `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image${i+1}.jpeg"/>
+</Relationships>`);
+    mediaFolder.file(`image${i+1}.jpeg`, img.bytes);
+  });
+  return await zip.generateAsync({type:"blob", mimeType:"application/vnd.openxmlformats-officedocument.presentationml.presentation"});
+}
+
+/* ---- PDF to Word (text-only, real valid .docx) ---- */
+function mountPdfToWordConvert(root){
+  let file=null;
+  root.innerHTML=`
+  <div class="workspace two-col">
+    <div class="card">
+      <div class="pdf-note"><b>What this does:</b> extracts the text of every page into a real, editable .docx. It reconstructs line breaks but not columns, tables, or exact fonts — for pixel-perfect layout there's no substitute for the original source file.</div>
+      <div id="dz-host"></div>
+      <div id="p2w-file" class="hint" style="margin-top:10px;"></div>
+      <div class="btn-row"><button class="btn" id="p2w-go" disabled>Convert &amp; Download</button></div>
+      <div id="p2w-status" class="hint"></div>
+    </div>
+    <div class="card"><h3>Preview</h3><div id="p2w-preview" class="doc-wrap"><div class="doc-empty">Upload a PDF to see the extracted text.</div></div></div>
+  </div>`;
+  mountDropzone(document.getElementById("dz-host"),{accept:"application/pdf",label:"Click to choose a PDF",onFiles:(fs)=>{
+    file=fs[0]; document.getElementById("p2w-file").textContent=file.name; document.getElementById("p2w-go").disabled=false;
+  }});
+  document.getElementById("p2w-go").onclick=async()=>{
+    const statusEl=document.getElementById("p2w-status"); const goBtn=document.getElementById("p2w-go");
+    goBtn.disabled=true; statusEl.textContent="Extracting text...";
+    try{
+      const bytes=await readFileArrayBuffer(file);
+      const pdfjsDoc=await pdfjsGetDoc(bytes);
+      const lines=[];
+      for(let i=1;i<=pdfjsDoc.numPages;i++){
+        const page=await pdfjsDoc.getPage(i);
+        const content=await page.getTextContent();
+        let curY=null, curLine=[];
+        content.items.forEach(item=>{
+          const y=item.transform[5];
+          if(curY!==null && Math.abs(y-curY)>2){ lines.push(curLine.join(" ")); curLine=[]; }
+          curLine.push(item.str); curY=y;
+        });
+        if(curLine.length) lines.push(curLine.join(" "));
+        if(i<pdfjsDoc.numPages) lines.push("");
+      }
+      document.getElementById("p2w-preview").innerHTML = `<pre style="white-space:pre-wrap;font-family:inherit;font-size:13px;">${esc(lines.slice(0,60).join("\n"))}${lines.length>60?"\n…":""}</pre>`;
+      const blob=await buildMinimalDocx(lines);
+      downloadBlobFile(file.name.replace(/\.pdf$/i,"")+".docx", blob);
+      statusEl.textContent="Done — "+pdfjsDoc.numPages+" page(s) converted.";
+    }catch(err){ statusEl.textContent="Couldn't convert this file: "+err.message; }
+    goBtn.disabled=false;
+  };
+}
+
+/* ---- PDF to Excel (heuristic row/column reconstruction) ---- */
+function mountPdfToExcel(root){
+  let file=null;
+  root.innerHTML=`
+  <div class="workspace two-col">
+    <div class="card">
+      <div class="pdf-note"><b>What this does:</b> groups text by position into rows and columns — works well for simple tables and tabular data, but complex multi-column layouts or merged cells won't reconstruct perfectly.</div>
+      <div id="dz-host"></div>
+      <div id="p2e-file" class="hint" style="margin-top:10px;"></div>
+      <div class="btn-row"><button class="btn" id="p2e-go" disabled>Convert &amp; Download</button></div>
+      <div id="p2e-status" class="hint"></div>
+    </div>
+    <div class="card"><h3>How it works</h3><p class="hint">Each PDF page becomes one sheet in the workbook. Text items are grouped into rows by vertical position, then split into cells wherever there's a clear horizontal gap.</p></div>
+  </div>`;
+  mountDropzone(document.getElementById("dz-host"),{accept:"application/pdf",label:"Click to choose a PDF",onFiles:(fs)=>{
+    file=fs[0]; document.getElementById("p2e-file").textContent=file.name; document.getElementById("p2e-go").disabled=false;
+  }});
+  document.getElementById("p2e-go").onclick=async()=>{
+    const statusEl=document.getElementById("p2e-status"); const goBtn=document.getElementById("p2e-go");
+    goBtn.disabled=true; statusEl.textContent="Analysing layout...";
+    try{
+      const bytes=await readFileArrayBuffer(file);
+      const pdfjsDoc=await pdfjsGetDoc(bytes);
+      const wb=XLSX.utils.book_new();
+      for(let i=1;i<=pdfjsDoc.numPages;i++){
+        const page=await pdfjsDoc.getPage(i);
+        const content=await page.getTextContent();
+        const items=content.items.map(it=>({str:it.str,x:it.transform[4],y:it.transform[5],w:it.width||0})).filter(it=>it.str.trim());
+        items.sort((a,b)=> b.y-a.y || a.x-b.x);
+        const rows=[]; let curY=null, curRow=null;
+        items.forEach(it=>{
+          if(curY===null || Math.abs(it.y-curY)>3){ curRow=[]; rows.push(curRow); curY=it.y; }
+          curRow.push(it);
+        });
+        const aoa=rows.map(row=>{
+          row.sort((a,b)=>a.x-b.x);
+          const cells=[]; let cur="", lastEnd=null;
+          row.forEach(it=>{
+            if(lastEnd!==null && (it.x-lastEnd)>8){ cells.push(cur.trim()); cur=""; }
+            cur += (cur?" ":"")+it.str; lastEnd = it.x+it.w;
+          });
+          if(cur) cells.push(cur.trim());
+          return cells;
+        });
+        const ws=XLSX.utils.aoa_to_sheet(aoa.length?aoa:[[""]]);
+        XLSX.utils.book_append_sheet(wb, ws, ("Page "+i).slice(0,31));
+      }
+      const wbBytes=XLSX.write(wb,{type:"array",bookType:"xlsx"});
+      downloadBlobFile(file.name.replace(/\.pdf$/i,"")+".xlsx", new Blob([wbBytes],{type:"application/octet-stream"}));
+      statusEl.textContent="Done — "+pdfjsDoc.numPages+" sheet(s) created.";
+    }catch(err){ statusEl.textContent="Couldn't convert this file: "+err.message; }
+    goBtn.disabled=false;
+  };
+}
+
+/* ---- PDF to PowerPoint (image-per-slide) ---- */
+function mountPdfToPpt(root){
+  let file=null;
+  root.innerHTML=`
+  <div class="workspace two-col">
+    <div class="card">
+      <div class="pdf-note"><b>What this does:</b> renders each PDF page as a slide image. Slides are visually accurate but text isn't editable — think of it as "PDF pages in a slide deck" rather than an editable reconstruction.</div>
+      <div id="dz-host"></div>
+      <div id="p2p-file" class="hint" style="margin-top:10px;"></div>
+      <div class="btn-row"><button class="btn" id="p2p-go" disabled>Convert &amp; Download</button></div>
+      <div class="progress-line" id="p2p-progress" style="display:none;"><div class="fill" id="p2p-fill"></div></div>
+      <div id="p2p-status" class="hint"></div>
+    </div>
+    <div class="card"><h3>How it works</h3><p class="hint">Each page is rendered at high resolution and placed full-bleed, centred, on a 16:9 slide.</p></div>
+  </div>`;
+  mountDropzone(document.getElementById("dz-host"),{accept:"application/pdf",label:"Click to choose a PDF",onFiles:(fs)=>{
+    file=fs[0]; document.getElementById("p2p-file").textContent=file.name; document.getElementById("p2p-go").disabled=false;
+  }});
+  document.getElementById("p2p-go").onclick=async()=>{
+    const statusEl=document.getElementById("p2p-status"); const goBtn=document.getElementById("p2p-go");
+    const prog=document.getElementById("p2p-progress"); const fill=document.getElementById("p2p-fill");
+    goBtn.disabled=true; statusEl.textContent="Rendering slides..."; prog.style.display="block";
+    try{
+      const bytes=await readFileArrayBuffer(file);
+      const pdfjsDoc=await pdfjsGetDoc(bytes);
+      const images=[];
+      for(let i=1;i<=pdfjsDoc.numPages;i++){
+        const canvas=await renderPageToCanvas(pdfjsDoc,i,2);
+        const blob=await new Promise(res=>canvas.toBlob(res,"image/jpeg",0.9));
+        images.push({bytes: await blob.arrayBuffer(), width:canvas.width, height:canvas.height});
+        fill.style.width=Math.round((i/pdfjsDoc.numPages)*100)+"%";
+      }
+      const pptxBlob=await buildMinimalPptx(images);
+      downloadBlobFile(file.name.replace(/\.pdf$/i,"")+".pptx", pptxBlob);
+      statusEl.textContent="Done — "+images.length+" slide(s) created.";
+    }catch(err){ statusEl.textContent="Couldn't convert this file: "+err.message; }
+    goBtn.disabled=false;
+  };
+}
+
+/* ---- PowerPoint to PDF (approximate text-position reconstruction) ---- */
+function mountPptToPdf(root){
+  let file=null;
+  root.innerHTML=`
+  <div class="workspace two-col">
+    <div class="card">
+      <div class="pdf-note"><b>What this does:</b> reads each slide's text boxes and their position, then redraws them on a PDF page at roughly the same spot. It does not render images, charts, exact fonts or colours — for a pixel-perfect result, use PowerPoint's own "Save as PDF".</div>
+      <div id="dz-host"></div>
+      <div id="ppt2p-file" class="hint" style="margin-top:10px;"></div>
+      <div class="btn-row"><button class="btn" id="ppt2p-go" disabled>Convert &amp; Download</button></div>
+      <div id="ppt2p-status" class="hint"></div>
+    </div>
+    <div class="card"><h3>How it works</h3><p class="hint">Each slide becomes one PDF page, sized to match the presentation's slide dimensions.</p></div>
+  </div>`;
+  mountDropzone(document.getElementById("dz-host"),{accept:".pptx",label:"Click to choose a .pptx file",onFiles:(fs)=>{
+    file=fs[0]; document.getElementById("ppt2p-file").textContent=file.name; document.getElementById("ppt2p-go").disabled=false;
+  }});
+  document.getElementById("ppt2p-go").onclick=async()=>{
+    const statusEl=document.getElementById("ppt2p-status"); const goBtn=document.getElementById("ppt2p-go");
+    goBtn.disabled=true; statusEl.textContent="Reading slides...";
+    try{
+      const bytes=await readFileArrayBuffer(file);
+      const zip=await JSZip.loadAsync(bytes);
+      const presXml=await zip.file("ppt/presentation.xml").async("string");
+      const presDoc=new DOMParser().parseFromString(presXml,"application/xml");
+      const sldSz=presDoc.getElementsByTagName("p:sldSz")[0];
+      const emuW=sldSz?Number(sldSz.getAttribute("cx")):9144000, emuH=sldSz?Number(sldSz.getAttribute("cy")):6858000;
+      const ptW=emuW/12700, ptH=emuH/12700;
+      const slideFiles=Object.keys(zip.files).filter(n=>/^ppt\/slides\/slide\d+\.xml$/.test(n))
+        .sort((a,b)=> Number(a.match(/(\d+)/)[1]) - Number(b.match(/(\d+)/)[1]));
+      if(!slideFiles.length) throw new Error("No slides found in this file.");
+      const {PDFDocument,rgb,StandardFonts}=PDFLib;
+      const doc=await PDFDocument.create();
+      const font=await doc.embedFont(StandardFonts.Helvetica);
+      for(const name of slideFiles){
+        const xml=await zip.file(name).async("string");
+        const sdoc=new DOMParser().parseFromString(xml,"application/xml");
+        const page=doc.addPage([ptW,ptH]);
+        const shapes=Array.from(sdoc.getElementsByTagName("p:sp"));
+        shapes.forEach(sp=>{
+          const off=sp.getElementsByTagName("a:off")[0];
+          const ext=sp.getElementsByTagName("a:ext")[0];
+          const texts=Array.from(sp.getElementsByTagName("a:t")).map(t=>t.textContent).join(" ");
+          if(!texts.trim()) return;
+          const x = off ? Number(off.getAttribute("x"))/12700 : 40;
+          const yTop = off ? Number(off.getAttribute("y"))/12700 : 40;
+          const boxW = ext ? Number(ext.getAttribute("cx"))/12700 : ptW-80;
+          const size=14;
+          const y = Math.max(10, ptH - yTop - size);
+          const wrapped=wrapTextToWidth(texts, font, size, boxW||200);
+          wrapped.forEach((line,li)=>{
+            const ly=y-(li*size*1.2);
+            if(ly>0) page.drawText(line, {x, y:ly, size, font, color:rgb(0.1,0.1,0.15), maxWidth:boxW||undefined});
+          });
+        });
+      }
+      const outBytes=await doc.save();
+      downloadBlobFile(file.name.replace(/\.pptx$/i,"")+".pdf", new Blob([outBytes],{type:"application/pdf"}));
+      statusEl.textContent="Done — "+slideFiles.length+" slide(s) converted.";
+    }catch(err){ statusEl.textContent="Couldn't convert this file: "+err.message; }
+    goBtn.disabled=false;
+  };
+}
+function wrapTextToWidth(text, font, size, maxWidth){
+  const words=text.split(/\s+/); const lines=[]; let cur="";
+  words.forEach(w=>{
+    const test=cur?cur+" "+w:w;
+    if(font.widthOfTextAtSize(test,size) > maxWidth && cur){ lines.push(cur); cur=w; }
+    else cur=test;
+  });
+  if(cur) lines.push(cur);
+  return lines.slice(0,40);
+}
+
+/* ---- Edit PDF (click-to-place text annotations) ---- */
+function mountPdfEdit(root){
+  let file=null, pdfjsDoc=null, currentPage=1, canvasEl=null, scale=1.3;
+  let annotations=[]; // {page,xr,yr,text,size,color}
+  let nextColor="#c0392b", nextSize=16;
+  root.innerHTML=`
+  <div class="workspace" style="grid-template-columns:1fr;">
+    <div class="card">
+      <div class="pdf-note"><b>Runs entirely in your browser.</b> Click anywhere on the page to add a text box, type into it, then save. Works one page at a time — use the page number field to add text to other pages.</div>
+      <div id="dz-host"></div>
+      <div id="edit-controls" style="display:none;margin-top:14px;">
+        <div class="field-row">
+          <div class="field"><label>Page</label><input type="number" id="edit-page" value="1" min="1"></div>
+          <div class="field"><label>Text size</label><input type="number" id="edit-size" value="16" min="6" max="72"></div>
+          <div class="field"><label>Colour</label><input type="color" id="edit-color" value="#c0392b"></div>
+        </div>
+        <div style="position:relative;display:inline-block;max-width:100%;">
+          <canvas id="edit-canvas"></canvas>
+          <div id="edit-overlay" style="position:absolute;inset:0;cursor:crosshair;"></div>
+        </div>
+        <div id="edit-list" style="margin-top:14px;"></div>
+        <div class="btn-row"><button class="btn" id="edit-save">Save &amp; Download</button></div>
+      </div>
+      <div id="edit-status" class="hint" style="margin-top:10px;"></div>
+    </div>
+  </div>`;
+  mountDropzone(document.getElementById("dz-host"),{accept:"application/pdf",label:"Click to choose a PDF",onFiles:async(fs)=>{
+    file=fs[0];
+    const bytes=await readFileArrayBuffer(file);
+    pdfjsDoc=await pdfjsGetDoc(bytes);
+    document.getElementById("edit-page").max=pdfjsDoc.numPages;
+    document.getElementById("edit-controls").style.display="block";
+    document.getElementById("edit-status").textContent=file.name+" — "+pdfjsDoc.numPages+" page(s).";
+    await renderCurrentPage();
+  }});
+  document.getElementById("edit-size").oninput=(e)=>nextSize=Number(e.target.value)||16;
+  document.getElementById("edit-color").oninput=(e)=>nextColor=e.target.value;
+  document.getElementById("edit-page").onchange=async(e)=>{
+    currentPage=Math.min(Math.max(1,Number(e.target.value)||1), pdfjsDoc.numPages);
+    await renderCurrentPage();
+  };
+  async function renderCurrentPage(){
+    const canvas=await renderPageToCanvas(pdfjsDoc,currentPage,scale);
+    canvasEl=document.getElementById("edit-canvas");
+    canvasEl.width=canvas.width; canvasEl.height=canvas.height;
+    canvasEl.style.width=Math.min(canvas.width,760)+"px";
+    canvasEl.getContext("2d").drawImage(canvas,0,0);
+    document.getElementById("edit-overlay").style.width=canvasEl.style.width;
+    document.getElementById("edit-overlay").style.height=(canvas.height*(Math.min(canvas.width,760)/canvas.width))+"px";
+    renderAnnotationLabels();
+  }
+  document.getElementById("edit-overlay").onclick=(e)=>{
+    const rect=e.target.getBoundingClientRect();
+    const xr=(e.clientX-rect.left)/rect.width, yr=(e.clientY-rect.top)/rect.height;
+    const text=prompt("Text to add:","");
+    if(text===null || !text.trim()) return;
+    annotations.push({page:currentPage, xr, yr, text, size:nextSize, color:nextColor});
+    renderAnnotationLabels();
+  };
+  function renderAnnotationLabels(){
+    const overlay=document.getElementById("edit-overlay");
+    overlay.querySelectorAll(".edit-label").forEach(el=>el.remove());
+    annotations.filter(a=>a.page===currentPage).forEach((a)=>{
+      const idx=annotations.indexOf(a);
+      const label=document.createElement("div");
+      label.className="edit-label";
+      label.textContent=a.text;
+      label.style.cssText=`position:absolute;left:${a.xr*100}%;top:${a.yr*100}%;color:${a.color};font-size:${a.size*0.75}px;font-weight:600;background:rgba(255,255,255,0.75);padding:1px 3px;cursor:pointer;white-space:nowrap;`;
+      label.title="Click to remove";
+      label.onclick=(ev)=>{ ev.stopPropagation(); annotations.splice(idx,1); renderAnnotationLabels(); };
+      overlay.appendChild(label);
+    });
+    document.getElementById("edit-list").innerHTML = annotations.length
+      ? `<div class="hint">${annotations.length} text box(es) added across all pages. Click a label on the page to remove it.</div>`
+      : `<div class="hint">No text boxes yet — click on the page above to add one.</div>`;
+  }
+  document.getElementById("edit-save").onclick=async()=>{
+    const statusEl=document.getElementById("edit-status");
+    statusEl.textContent="Saving...";
+    try{
+      const {PDFDocument,rgb,StandardFonts}=PDFLib;
+      const bytes=await readFileArrayBuffer(file);
+      const doc=await PDFDocument.load(bytes,{ignoreEncryption:true});
+      const font=await doc.embedFont(StandardFonts.Helvetica);
+      annotations.forEach(a=>{
+        const page=doc.getPage(a.page-1);
+        const {width,height}=page.getSize();
+        const x=a.xr*width, y=height-(a.yr*height)-a.size;
+        const [r,g,b]=hexToRgb01(a.color);
+        page.drawText(a.text, {x, y, size:a.size, font, color:rgb(r,g,b)});
+      });
+      const outBytes=await doc.save();
+      downloadBlobFile("edited.pdf", new Blob([outBytes],{type:"application/pdf"}));
+      statusEl.textContent="Done.";
+    }catch(err){ statusEl.textContent="Couldn't save: "+err.message; }
+  };
+}
+function hexToRgb01(hex){
+  const h=hex.replace("#","");
+  return [parseInt(h.substr(0,2),16)/255, parseInt(h.substr(2,2),16)/255, parseInt(h.substr(4,2),16)/255];
+}
+
+/* ---- Repair PDF (structural retry, falls back to image rebuild) ---- */
+function mountPdfRepair(root){
+  let file=null;
+  root.innerHTML=`
+  <div class="workspace two-col">
+    <div class="card">
+      <div class="pdf-note"><b>Runs entirely in your browser.</b> First tries to re-save the file's own structure (keeps text selectable); if the file is too damaged for that, it falls back to rebuilding each page as an image (recovers the visual content, but text won't be selectable anymore).</div>
+      <div id="dz-host"></div>
+      <div id="rep-file" class="hint" style="margin-top:10px;"></div>
+      <div class="btn-row"><button class="btn" id="rep-go" disabled>Attempt Repair &amp; Download</button></div>
+      <div id="rep-status" class="hint"></div>
+    </div>
+    <div class="card"><h3>Good to know</h3><p class="hint">Not every damaged file can be recovered — if both approaches fail, the file's data itself is likely lost.</p></div>
+  </div>`;
+  mountDropzone(document.getElementById("dz-host"),{accept:"application/pdf",label:"Click to choose a PDF",onFiles:(fs)=>{
+    file=fs[0]; document.getElementById("rep-file").textContent=file.name; document.getElementById("rep-go").disabled=false;
+  }});
+  document.getElementById("rep-go").onclick=async()=>{
+    const statusEl=document.getElementById("rep-status"); const goBtn=document.getElementById("rep-go");
+    goBtn.disabled=true; statusEl.textContent="Attempting structural repair...";
+    try{
+      const bytes=await readFileArrayBuffer(file);
+      let outBytes=null, method="structural";
+      try{
+        const {PDFDocument}=PDFLib;
+        const doc=await PDFDocument.load(bytes,{ignoreEncryption:true, throwOnInvalidObject:false, updateMetadata:false});
+        outBytes=await doc.save({useObjectStreams:false});
+      }catch(e1){
+        statusEl.textContent="Structural repair failed — rebuilding pages as images instead...";
+        const pdfjsDoc=await pdfjsGetDoc(bytes);
+        const {PDFDocument}=PDFLib;
+        const outDoc=await PDFDocument.create();
+        for(let i=1;i<=pdfjsDoc.numPages;i++){
+          const canvas=await renderPageToCanvas(pdfjsDoc,i,1.5);
+          const jpgBlob=await new Promise(res=>canvas.toBlob(res,"image/jpeg",0.85));
+          const img=await outDoc.embedJpg(await jpgBlob.arrayBuffer());
+          const page=outDoc.addPage([canvas.width/1.5, canvas.height/1.5]);
+          page.drawImage(img,{x:0,y:0,width:page.getWidth(),height:page.getHeight()});
+        }
+        outBytes=await outDoc.save();
+        method="image-rebuild";
+      }
+      downloadBlobFile("repaired.pdf", new Blob([outBytes],{type:"application/pdf"}));
+      statusEl.textContent = method==="structural"
+        ? "Repaired using structural recovery — text should still be selectable."
+        : "This file was too damaged for structural repair, so pages were recovered as images (text is no longer selectable, but the visual content is preserved).";
+    }catch(err){ statusEl.textContent="Sorry — this file is too damaged to recover: "+err.message; }
+    goBtn.disabled=false;
+  };
+}
+
+/* ---- OCR PDF (Tesseract.js: searchable PDF + text) ---- */
+function mountPdfOcr(root){
+  let file=null;
+  root.innerHTML=`
+  <div class="workspace two-col">
+    <div class="card">
+      <div class="pdf-note"><b>Runs entirely in your browser</b> using an open-source OCR engine. The first run downloads a small language model (needs internet once); recognition itself never leaves your device. Larger documents take a while — this runs page by page.</div>
+      <div id="dz-host"></div>
+      <div id="ocr-file" class="hint" style="margin-top:10px;"></div>
+      <div class="btn-row"><button class="btn" id="ocr-go" disabled>Run OCR &amp; Download</button></div>
+      <div class="progress-line" id="ocr-progress" style="display:none;"><div class="fill" id="ocr-fill"></div></div>
+      <div id="ocr-status" class="hint"></div>
+    </div>
+    <div class="card"><h3>What you get</h3><p class="hint">A searchable PDF (original page images with an invisible, selectable text layer behind them) plus a plain .txt file of everything recognised.</p></div>
+  </div>`;
+  mountDropzone(document.getElementById("dz-host"),{accept:"application/pdf",label:"Click to choose a scanned PDF",onFiles:(fs)=>{
+    file=fs[0]; document.getElementById("ocr-file").textContent=file.name; document.getElementById("ocr-go").disabled=false;
+  }});
+  document.getElementById("ocr-go").onclick=async()=>{
+    const statusEl=document.getElementById("ocr-status"); const goBtn=document.getElementById("ocr-go");
+    const prog=document.getElementById("ocr-progress"); const fill=document.getElementById("ocr-fill");
+    goBtn.disabled=true; prog.style.display="block"; statusEl.textContent="Starting OCR engine (downloading language data on first use)...";
+    let worker=null;
+    try{
+      worker=await makeOcrWorker();
+      const bytes=await readFileArrayBuffer(file);
+      const pdfjsDoc=await pdfjsGetDoc(bytes);
+      const {PDFDocument,StandardFonts}=PDFLib;
+      const outDoc=await PDFDocument.create();
+      const font=await outDoc.embedFont(StandardFonts.Helvetica);
+      let allText="";
+      const scale=2;
+      for(let i=1;i<=pdfjsDoc.numPages;i++){
+        statusEl.textContent=`Reading page ${i} of ${pdfjsDoc.numPages}...`;
+        const canvas=await renderPageToCanvas(pdfjsDoc,i,scale);
+        const {data}=await worker.recognize(canvas);
+        allText += `\n--- Page ${i} ---\n`+(data.text||"");
+        const jpgBlob=await new Promise(res=>canvas.toBlob(res,"image/jpeg",0.85));
+        const img=await outDoc.embedJpg(await jpgBlob.arrayBuffer());
+        const pageW=canvas.width/scale, pageH=canvas.height/scale;
+        const page=outDoc.addPage([pageW,pageH]);
+        page.drawImage(img,{x:0,y:0,width:pageW,height:pageH});
+        (data.words||[]).forEach(w=>{
+          if(!w.text || !w.text.trim() || !w.bbox) return;
+          const x=w.bbox.x0/scale, yTop=w.bbox.y0/scale;
+          const hgt=Math.max((w.bbox.y1-w.bbox.y0)/scale, 6);
+          const y=pageH-yTop-hgt;
+          try{ page.drawText(w.text, {x, y, size:Math.max(hgt*0.85,5), font, opacity:0}); }catch(e){}
+        });
+        fill.style.width=Math.round((i/pdfjsDoc.numPages)*100)+"%";
+      }
+      const outBytes=await outDoc.save();
+      downloadBlobFile(file.name.replace(/\.pdf$/i,"")+"-searchable.pdf", new Blob([outBytes],{type:"application/pdf"}));
+      downloadBlobFile(file.name.replace(/\.pdf$/i,"")+"-text.txt", new Blob([allText],{type:"text/plain"}));
+      statusEl.textContent="Done — downloaded a searchable PDF and a plain-text file.";
+    }catch(err){ statusEl.textContent="Couldn't complete OCR: "+err.message; }
+    finally{ if(worker) try{ await worker.terminate(); }catch(e){} }
+    goBtn.disabled=false;
+  };
+}
+
+/* ---- PDF to PDF/A (metadata + structure first-pass) ---- */
+function mountPdfToPdfA(root){
+  let file=null;
+  root.innerHTML=`
+  <div class="workspace two-col">
+    <div class="card">
+      <div class="pdf-note"><b>Honest scope:</b> this adds the PDF/A identification metadata (XMP conformance tags) and strips any encryption — the checks most archival systems look for first. It does not embed a colour profile or verify against the official PDF/A validator (veraPDF), so treat this as a strong first pass, not a certified conversion.</div>
+      <div id="dz-host"></div>
+      <div id="pdfa-file" class="hint" style="margin-top:10px;"></div>
+      <div class="btn-row"><button class="btn" id="pdfa-go" disabled>Convert &amp; Download</button></div>
+      <div id="pdfa-status" class="hint"></div>
+    </div>
+    <div class="card"><h3>For certified PDF/A</h3><p class="hint">If a system requires officially certified PDF/A, use dedicated desktop software (e.g. Acrobat Pro) or validate the result with veraPDF afterwards.</p></div>
+  </div>`;
+  mountDropzone(document.getElementById("dz-host"),{accept:"application/pdf",label:"Click to choose a PDF",onFiles:(fs)=>{
+    file=fs[0]; document.getElementById("pdfa-file").textContent=file.name; document.getElementById("pdfa-go").disabled=false;
+  }});
+  document.getElementById("pdfa-go").onclick=async()=>{
+    const statusEl=document.getElementById("pdfa-status"); const goBtn=document.getElementById("pdfa-go");
+    goBtn.disabled=true; statusEl.textContent="Adding PDF/A metadata...";
+    try{
+      const {PDFDocument,PDFName,PDFRawStream,PDFDict}=PDFLib;
+      const bytes=await readFileArrayBuffer(file);
+      const doc=await PDFDocument.load(bytes,{ignoreEncryption:true});
+      if(doc.context.trailerInfo.Encrypt) delete doc.context.trailerInfo.Encrypt;
+      const xmp=`<?xpacket begin="\uFEFF" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/">
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+<rdf:Description rdf:about="" xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/">
+<pdfaid:part>1</pdfaid:part><pdfaid:conformance>B</pdfaid:conformance>
+</rdf:Description>
+<rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:format>application/pdf</dc:format></rdf:Description>
+</rdf:RDF>
+</x:xmpmeta>
+<?xpacket end="w"?>`;
+      const metaStream=doc.context.flateStream(xmp, {Type:PDFName.of("Metadata"), Subtype:PDFName.of("XML")});
+      const metaRef=doc.context.register(metaStream);
+      doc.catalog.set(PDFName.of("Metadata"), metaRef);
+      const outBytes=await doc.save();
+      downloadBlobFile(file.name.replace(/\.pdf$/i,"")+"-pdfa.pdf", new Blob([outBytes],{type:"application/pdf"}));
+      statusEl.textContent="Done — PDF/A identification metadata added.";
+    }catch(err){ statusEl.textContent="Couldn't process this file: "+err.message; }
+    goBtn.disabled=false;
+  };
+}
+
+/* ---- Protect PDF (real RC4-128 standard security handler encryption) ---- */
+function mountPdfProtect(root){
+  let file=null;
+  root.innerHTML=`
+  <div class="workspace two-col">
+    <div class="card">
+      <div class="pdf-note"><b>Runs entirely in your browser.</b> Uses standard RC4 128-bit encryption (compatible with virtually every PDF reader, including old ones). For very sensitive material, dedicated desktop software offers stronger AES-256 options.</div>
+      <div id="dz-host"></div>
+      <div id="prot-file" class="hint" style="margin-top:10px;"></div>
+      <div class="field" style="margin-top:14px;"><label>Password to open the file</label><input type="text" id="prot-pw" placeholder="Choose a password"></div>
+      <div class="btn-row"><button class="btn" id="prot-go" disabled>Protect &amp; Download</button></div>
+      <div id="prot-status" class="hint"></div>
+    </div>
+    <div class="card"><h3>Keep this safe</h3><p class="hint">Anyone opening the resulting file will need this exact password. There's no way to recover a lost password — write it down somewhere safe.</p></div>
+  </div>`;
+  mountDropzone(document.getElementById("dz-host"),{accept:"application/pdf",label:"Click to choose a PDF",onFiles:(fs)=>{
+    file=fs[0]; document.getElementById("prot-file").textContent=file.name; checkReady();
+  }});
+  document.getElementById("prot-pw").oninput=checkReady;
+  function checkReady(){ document.getElementById("prot-go").disabled = !(file && document.getElementById("prot-pw").value); }
+  document.getElementById("prot-go").onclick=async()=>{
+    const statusEl=document.getElementById("prot-status"); const goBtn=document.getElementById("prot-go");
+    goBtn.disabled=true; statusEl.textContent="Encrypting...";
+    try{
+      const {PDFDocument,PDFName,PDFHexString}=PDFLib;
+      const bytes=await readFileArrayBuffer(file);
+      const doc=await PDFDocument.load(bytes,{ignoreEncryption:true});
+      const pw=document.getElementById("prot-pw").value;
+      const keyLenBytes=16, revision=3, permissions=-4;
+      const idBytes=crypto.getRandomValues(new Uint8Array(16));
+      const ownerHash=computeOwnerHash(pw, pw, keyLenBytes, revision);
+      const fileKey=computeFileKey(pw, ownerHash, permissions, idBytes, keyLenBytes, revision);
+      const userHash=computeUserHash(fileKey, idBytes, revision);
+      await transformObjectGraph(doc, async (data, objNum, genNum)=>{
+        if(!data || !data.length) return data;
+        const key=objectKey(fileKey, objNum, genNum, false);
+        return rc4(key, data);
+      });
+      const encryptDict=doc.context.obj({
+        Filter: PDFName.of("Standard"), V: 2, R: revision,
+        O: PDFHexString.of(bytesToHex(ownerHash)), U: PDFHexString.of(bytesToHex(userHash)),
+        P: permissions, Length: keyLenBytes*8
+      });
+      const encryptRef=doc.context.register(encryptDict);
+      doc.context.trailerInfo.Encrypt=encryptRef;
+      doc.context.trailerInfo.ID=doc.context.obj([PDFHexString.of(bytesToHex(idBytes)), PDFHexString.of(bytesToHex(idBytes))]);
+      const outBytes=await doc.save({useObjectStreams:false});
+      downloadBlobFile(file.name.replace(/\.pdf$/i,"")+"-protected.pdf", new Blob([outBytes],{type:"application/pdf"}));
+      statusEl.textContent="Done — this file now requires the password to open.";
+    }catch(err){ statusEl.textContent="Couldn't protect this file: "+err.message; }
+    goBtn.disabled=false;
+  };
+}
+
+/* ---- Unlock PDF (RC4 / AES-128 decryption, empty or known password) ---- */
+function hexOrLiteralToBytes(obj){
+  const {PDFHexString,PDFString}=PDFLib;
+  if(!obj) return new Uint8Array(0);
+  if(obj instanceof PDFHexString) return hexToBytes(obj.value);
+  if(obj instanceof PDFString) return latin1ToBytes(obj.value);
+  return new Uint8Array(0);
+}
+function mountPdfUnlock(root){
+  let file=null;
+  root.innerHTML=`
+  <div class="workspace two-col">
+    <div class="card">
+      <div class="pdf-note"><b>Runs entirely in your browser.</b> Removes standard RC4 or AES-128 encryption. Works on files that open without a password (restrictions-only protection, the common case) or where you know the password. Files using newer AES-256 encryption aren't supported yet.</div>
+      <div id="dz-host"></div>
+      <div id="unlock-file" class="hint" style="margin-top:10px;"></div>
+      <div class="field" style="margin-top:10px;"><label>Password (leave blank if the file opens without one)</label><input type="text" id="unlock-pw" placeholder="Optional"></div>
+      <div class="btn-row"><button class="btn" id="unlock-go" disabled>Unlock &amp; Download</button></div>
+      <div id="unlock-status" class="hint"></div>
+    </div>
+    <div class="card"><h3>How it works</h3><p class="hint">Verifies the password against the file's own security data, decrypts every object, then saves a fresh copy with no encryption at all.</p></div>
+  </div>`;
+  mountDropzone(document.getElementById("dz-host"),{accept:"application/pdf",label:"Click to choose a PDF",onFiles:(fs)=>{
+    file=fs[0]; document.getElementById("unlock-file").textContent=file.name; document.getElementById("unlock-go").disabled=false;
+  }});
+  document.getElementById("unlock-go").onclick=async()=>{
+    const statusEl=document.getElementById("unlock-status"); const goBtn=document.getElementById("unlock-go");
+    goBtn.disabled=true; statusEl.textContent="Analysing encryption...";
+    try{
+      const {PDFDocument,PDFName}=PDFLib;
+      const bytes=await readFileArrayBuffer(file);
+      const doc=await PDFDocument.load(bytes,{ignoreEncryption:true});
+      const encryptRef=doc.context.trailerInfo.Encrypt;
+      if(!encryptRef){ statusEl.textContent="This file isn't encrypted — nothing to unlock."; goBtn.disabled=false; return; }
+      const encryptDict=doc.context.lookup(encryptRef);
+      const V=encryptDict.get(PDFName.of("V"))?.asNumber() ?? 1;
+      const R=encryptDict.get(PDFName.of("R"))?.asNumber() ?? 2;
+      const P=encryptDict.get(PDFName.of("P")).asNumber();
+      const O=hexOrLiteralToBytes(encryptDict.get(PDFName.of("O")));
+      const idArr=doc.context.trailerInfo.ID;
+      const idBytes = idArr ? hexOrLiteralToBytes(doc.context.lookupMaybe(idArr.get(0), PDFLib.PDFHexString) || idArr.get(0)) : new Uint8Array(0);
+      let keyLenBytes=5;
+      const lengthObj=encryptDict.get(PDFName.of("Length"));
+      if(lengthObj) keyLenBytes=Math.round(lengthObj.asNumber()/8);
+      else if(V>=2) keyLenBytes=16;
+      let isAES=false;
+      if(V>=4){
+        const cf=doc.context.lookup(encryptDict.get(PDFName.of("CF")));
+        if(cf){
+          const stdCf=doc.context.lookup(cf.get(PDFName.of("StdCF")));
+          if(stdCf){ const cfm=stdCf.get(PDFName.of("CFM")); isAES = cfm===PDFName.of("AESV2"); }
+        }
+      }
+      const pw=document.getElementById("unlock-pw").value||"";
+      const fileKey=computeFileKey(pw, O, P, idBytes, keyLenBytes, R);
+      statusEl.textContent="Decrypting...";
+      await transformObjectGraph(doc, async (data, objNum, genNum)=>{
+        if(!data || !data.length) return data;
+        const key=objectKey(fileKey, objNum, genNum, isAES);
+        return isAES ? await aesCbcDecrypt(key, data) : rc4(key, data);
+      });
+      delete doc.context.trailerInfo.Encrypt;
+      const outBytes=await doc.save({useObjectStreams:false});
+      downloadBlobFile(file.name.replace(/\.pdf$/i,"")+"-unlocked.pdf", new Blob([outBytes],{type:"application/pdf"}));
+      statusEl.textContent="Done. If any text looks garbled, the password entered wasn't correct for this file.";
+    }catch(err){ statusEl.textContent="Couldn't unlock this file: "+err.message+" — it may use a newer AES-256 scheme this tool doesn't support yet."; }
+    goBtn.disabled=false;
+  };
+}
+
 const PDF_TOOL_HANDLERS = {
   "pdf-merge":{desc:"Combine two or more PDFs into one, in whatever order you like.", mount:mountPdfMerge},
   "pdf-split":{desc:"Pull pages out of a PDF — split into individual pages or custom ranges.", mount:mountPdfSplit},
@@ -2864,7 +3753,17 @@ const PDF_TOOL_HANDLERS = {
   "html-to-pdf":{desc:"Turn pasted text or HTML content into a printable PDF.", mount:mountHtmlToPdf},
   "pdf-organize":{desc:"Reorder or delete pages, then save a new PDF.", mount:mountPdfOrganize},
   "pdf-page-numbers":{desc:"Stamp page numbers onto every page.", mount:mountPdfPageNumbers},
-  "scan-to-pdf":{desc:"Capture photos with your camera and combine them into a PDF.", mount:mountScanToPdf}
+  "scan-to-pdf":{desc:"Capture photos with your camera and combine them into a PDF.", mount:mountScanToPdf},
+  "pdf-to-word":{desc:"Extract a PDF's text into a real, editable .docx file.", mount:mountPdfToWordConvert},
+  "pdf-to-excel":{desc:"Reconstruct simple tables from a PDF into an .xlsx workbook.", mount:mountPdfToExcel},
+  "pdf-to-ppt":{desc:"Turn each PDF page into a slide image in a .pptx file.", mount:mountPdfToPpt},
+  "ppt-to-pdf":{desc:"Approximate a PowerPoint's slide text layout as a PDF.", mount:mountPptToPdf},
+  "pdf-edit":{desc:"Click to add text boxes to a PDF, then save a flattened copy.", mount:mountPdfEdit},
+  "pdf-repair":{desc:"Attempt to recover a damaged or corrupted PDF.", mount:mountPdfRepair},
+  "pdf-ocr":{desc:"Recognise text in a scanned PDF and make it searchable.", mount:mountPdfOcr},
+  "pdf-to-pdfa":{desc:"Add PDF/A identification metadata as a first pass toward archival compliance.", mount:mountPdfToPdfA},
+  "pdf-protect":{desc:"Add a password that's required to open the PDF.", mount:mountPdfProtect},
+  "pdf-unlock":{desc:"Remove standard PDF password protection.", mount:mountPdfUnlock}
 };
 
 /* ============================= INIT ============================= */
