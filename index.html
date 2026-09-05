@@ -1,0 +1,2874 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Factory Safety Toolkit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f2f5fb;
+  --panel:#ffffff;
+  --panel-2:#eef2f9;
+  --line:#d7e0ee;
+  --text:#151b2b;
+  --text-dim:#4c586e;
+  --paper:#ffffff;
+  --paper-line:#dfe4ee;
+  --ink:#161b26;
+  --ink-dim:#5b6274;
+
+  --brand:#1e3a8a;
+  --brand-2:#2b4fc4;
+  --brand-dark:#122a63;
+
+  --yellow:#a3660f;
+  --red:#b3362a;
+  --green:#1e7a4d;
+  --blue:#2c6288;
+  --slate:#54636b;
+
+  --accent-fire:#15306f;
+  --accent-workplace:#1e46a8;
+  --accent-environment:#2b5fce;
+  --accent-audit:#4b6fb0;
+  --accent-docs:#5f84dd;
+  --accent-pdftools:#3d6fd1;
+
+  --radius:6px;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;max-width:100%;overflow-x:hidden;}
+img,svg,table,video{max-width:100%;}
+h1,h2,h3,h4,p,.doc-field,.doc-id-company,.brand-name{overflow-wrap:break-word;word-break:break-word;}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:'IBM Plex Sans',sans-serif;
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,h4{
+  font-family:'Barlow Condensed',sans-serif;
+  font-weight:700;
+  letter-spacing:0.01em;
+  margin:0;
+  color:var(--text);
+}
+a{color:inherit;}
+button{font-family:inherit;cursor:pointer;}
+::selection{background:var(--brand);color:#fff;}
+
+/* ---------- shell ---------- */
+#app{max-width:1180px;margin:0 auto;padding:0 24px 80px;}
+@keyframes pageFadeIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+#app.page-fade{animation:pageFadeIn .28s ease;}
+@media(prefers-reduced-motion:reduce){
+  #app.page-fade,.cat-panel{animation:none!important;}
+  *{transition-duration:0.01ms!important;}
+}
+.topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:22px 0;border-bottom:1px solid var(--line);
+  position:sticky;top:0;background:rgba(242,245,251,0.88);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:50;
+  box-shadow:0 1px 0 rgba(0,0,0,0.02);
+  transition:padding .15s ease;
+}
+.brand{display:flex;align-items:center;gap:10px;cursor:pointer;flex:none;}
+.brand-mark{
+  width:34px;height:34px;background:var(--brand);color:#fff;
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:18px;
+  border-radius:2px;flex:none;
+}
+.brand-name{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:19px;letter-spacing:0.02em;}
+.brand-sub{font-size:11px;color:var(--text-dim);letter-spacing:0.04em;margin-top:1px;}
+.menu-wrap{position:relative;}
+.menu-btn{
+  display:flex;align-items:center;gap:8px;background:var(--panel-2);border:1px solid var(--line);
+  color:var(--text);padding:9px 16px;border-radius:5px;font-size:13.5px;font-weight:600;cursor:pointer;
+  transition:border-color .12s ease, color .12s ease, transform .1s ease;
+}
+.menu-btn:hover{border-color:var(--brand);color:var(--brand);}
+.menu-btn:active{transform:scale(0.96);}
+.menu-icon{font-size:14px;line-height:1;}
+.menu-dropdown{
+  position:absolute;top:calc(100% + 10px);right:0;min-width:220px;
+  background:var(--panel);border:1px solid var(--line);border-radius:8px;
+  box-shadow:0 12px 32px rgba(20,25,28,0.16);padding:6px;z-index:60;
+  opacity:0;visibility:hidden;transform:translateY(-6px) scale(0.97);transform-origin:top right;
+  transition:opacity .16s ease, transform .16s ease, visibility .16s;
+}
+.menu-dropdown.open{opacity:1;visibility:visible;transform:translateY(0) scale(1);}
+.menu-backdrop{
+  position:fixed;inset:0;background:rgba(10,20,40,0.32);z-index:55;
+  opacity:0;visibility:hidden;transition:opacity .16s ease, visibility .16s;
+}
+.menu-backdrop.open{opacity:1;visibility:visible;}
+.menu-dropdown span{
+  display:block;padding:10px 12px;font-size:14px;color:var(--text);border-radius:5px;cursor:pointer;
+}
+.menu-dropdown span:hover{background:var(--panel-2);color:var(--brand);}
+
+/* ---------- hero ---------- */
+.hero{padding:64px 0 40px;border-bottom:1px solid var(--line);position:relative;}
+.hero::before{
+  content:"";position:absolute;top:-40px;right:-80px;width:420px;height:420px;border-radius:50%;
+  background:radial-gradient(circle at 30% 30%, rgba(30,58,138,0.10), rgba(30,58,138,0) 70%);
+  pointer-events:none;z-index:0;
+}
+.hero h1,.hero p.lead,.gauge-row{position:relative;z-index:1;}
+.hero h1{font-size:clamp(30px,7vw,56px);line-height:1.05;max-width:720px;}
+.hero p.lead{font-size:18px;color:var(--text-dim);max-width:560px;margin-top:18px;}
+.gauge-row{display:flex;gap:1px;background:var(--line);border:1px solid var(--line);margin-top:36px;flex-wrap:wrap;}
+.gauge{flex:1;min-width:140px;background:var(--panel);padding:18px 20px;border-bottom:2px solid var(--brand);}
+.gauge b{display:block;font-family:'Barlow Condensed',sans-serif;font-size:clamp(22px,5vw,34px);color:var(--brand);font-weight:700;}
+.gauge span{font-size:12.5px;color:var(--text-dim);}
+
+/* ---------- category grid ---------- */
+.section-label{
+  font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:700;
+  margin:52px 0 18px;padding-bottom:10px;border-bottom:2px solid var(--line);
+  position:relative;
+}
+.section-label::after{content:"";position:absolute;left:0;bottom:-2px;width:56px;height:2px;background:var(--brand);}
+.cat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:16px;}
+@keyframes cardIn{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);}}
+.cat-panel{
+  background:var(--panel);border:1px solid var(--line);border-top:3px solid var(--accent);border-radius:var(--radius);
+  padding:22px 22px 18px;position:relative;transition:border-color .15s ease, transform .15s ease, box-shadow .15s ease;
+  box-shadow:0 1px 2px rgba(20,25,28,0.04);
+  animation:cardIn .45s cubic-bezier(.2,.7,.3,1) both;
+}
+.cat-panel::before,.cat-panel::after{
+  content:"";position:absolute;top:10px;width:5px;height:5px;border-radius:50%;
+  background:var(--line);
+}
+.cat-panel::before{left:10px;}
+.cat-panel::after{right:10px;}
+.cat-panel:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 6px 16px rgba(20,25,28,0.08);}
+.cat-panel:active{transform:translateY(0) scale(0.99);}
+.cat-head{display:flex;align-items:center;gap:12px;margin-bottom:4px;}
+.cat-icon-badge{
+  width:38px;height:38px;flex:none;border-radius:9px;background:var(--panel-2);
+  display:flex;align-items:center;justify-content:center;font-size:19px;
+}
+.cat-title{font-size:22px;}
+.cat-count{font-size:12px;color:var(--text-dim);margin-bottom:14px;}
+.cat-tools{list-style:none;margin:0;padding:0;border-top:1px solid var(--line);}
+.cat-tools li{
+  padding:11px 2px;border-bottom:1px solid var(--line);font-size:14.5px;
+  display:flex;align-items:center;justify-content:space-between;cursor:pointer;color:var(--text-dim);
+  transition:color .12s ease;
+}
+.cat-tools li:hover{color:var(--text);}
+.cat-tools li:hover .go{opacity:1;transform:translateX(0);}
+.cat-tools li:active{color:var(--brand);}
+.go{opacity:0;transform:translateX(-4px);transition:.12s;color:var(--accent);font-size:13px;}
+@media(hover:none){.go{opacity:0.55;transform:none;}}
+.badge-soon{font-size:10px;color:var(--text-dim);border:1px solid var(--line);border-radius:2px;padding:1px 5px;margin-left:6px;}
+
+/* ---------- roadmap ---------- */
+.roadmap{
+  margin-top:56px;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  padding:26px 26px 22px;
+}
+.roadmap h3{font-size:22px;margin-bottom:14px;}
+.chain{display:flex;flex-wrap:wrap;align-items:center;gap:0;font-size:13.5px;color:var(--text-dim);}
+.chain span.step{background:var(--panel-2);border:1px solid var(--line);border-radius:2px;padding:6px 12px;}
+.chain span.arrow{padding:0 8px;color:var(--line);}
+.roadmap p{color:var(--text-dim);font-size:14px;margin-top:16px;max-width:640px;}
+
+footer{margin-top:60px;padding-top:22px;border-top:1px solid var(--line);color:var(--text-dim);font-size:12.5px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;}
+
+/* ---------- breadcrumb / tool workspace ---------- */
+.crumbs{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-dim);margin:28px 0 6px;}
+.crumbs span.link{cursor:pointer;}
+.crumbs span.link:hover{color:var(--text);}
+.tool-header{margin-bottom:22px;padding-bottom:18px;border-bottom:1px solid var(--line);}
+.tool-header h2{font-size:clamp(22px,5vw,34px);}
+.tool-header p{color:var(--text-dim);font-size:14.5px;margin-top:8px;max-width:640px;}
+.tool-tag{display:inline-block;font-size:11px;padding:2px 8px;border-radius:2px;background:var(--panel-2);color:var(--accent);border:1px solid var(--line);margin-bottom:10px;}
+
+.workspace{display:grid;grid-template-columns:1fr;gap:22px;}
+@media(min-width:920px){.workspace.two-col{grid-template-columns:1fr 1fr;align-items:start;}}
+
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:22px;box-shadow:0 1px 2px rgba(20,25,28,0.04);}
+.card h3{font-size:19px;margin-bottom:14px;}
+
+/* form elements */
+.field{margin-bottom:14px;}
+.field label{display:block;font-size:12.5px;color:var(--text-dim);margin-bottom:5px;letter-spacing:.01em;}
+.field input[type=text],.field input[type=number],.field input[type=date],.field select,.field textarea{
+  width:100%;background:var(--panel-2);border:1px solid var(--line);color:var(--text);
+  padding:9px 10px;border-radius:4px;font-family:inherit;font-size:14px;
+  transition:border-color .12s ease, box-shadow .12s ease;
+}
+.field input:focus,.field select:focus,.field textarea:focus,.rows-table input:focus,.rows-table select:focus{
+  outline:none;border-color:var(--brand);box-shadow:0 0 0 3px rgba(30,58,138,0.14);
+}
+.field textarea{min-height:70px;resize:vertical;}
+.field-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:12px;}
+.hint{font-size:11.5px;color:var(--text-dim);margin-top:4px;}
+
+.btn{
+  display:inline-flex;align-items:center;gap:6px;background:var(--brand);color:#fff;
+  border:none;padding:10px 18px;border-radius:4px;font-weight:600;font-size:13.5px;
+  box-shadow:0 1px 2px rgba(30,58,138,0.25);transition:filter .12s ease, box-shadow .12s ease, transform .1s ease;
+}
+.btn:hover{filter:brightness(1.12);box-shadow:0 2px 8px rgba(30,58,138,0.35);}
+.btn:active{transform:scale(0.97);}
+.btn.secondary{background:transparent;color:var(--text);border:1px solid var(--line);box-shadow:none;transition:border-color .12s ease, background .12s ease, transform .1s ease;}
+.btn.secondary:hover{border-color:var(--text-dim);}
+.btn.secondary:active{transform:scale(0.97);background:var(--panel-2);}
+.btn.small{padding:6px 10px;font-size:12.5px;}
+.btn-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;}
+
+/* rows table (repeatable) */
+.table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:8px;border-radius:4px;}
+.rows-table{width:100%;min-width:520px;border-collapse:collapse;margin-bottom:0;}
+.rows-table th{font-size:11px;color:var(--text-dim);text-align:left;padding:4px 6px;border-bottom:1px solid var(--line);white-space:nowrap;}
+.rows-table td{padding:4px 6px;vertical-align:top;}
+.rows-table input,.rows-table select{
+  width:100%;min-width:90px;background:var(--panel-2);border:1px solid var(--line);color:var(--text);
+  padding:6px 7px;border-radius:2px;font-size:13px;font-family:inherit;
+}
+.rm-row{background:transparent;border:none;color:var(--text-dim);font-size:16px;padding:2px 6px;}
+.rm-row:hover{color:var(--red);}
+
+/* checklist */
+.checklist-item{display:flex;gap:12px;align-items:flex-start;padding:11px 0;border-bottom:1px solid var(--line);}
+.checklist-item input[type=checkbox]{width:18px;height:18px;margin-top:2px;accent-color:var(--green);flex:none;}
+.checklist-item .ci-text{flex:1;font-size:14.5px;}
+.checklist-item select.status{
+  background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:2px;
+  font-size:12.5px;padding:4px 6px;flex:none;
+}
+.score-bar{height:8px;background:var(--panel-2);border-radius:4px;overflow:hidden;margin:14px 0 6px;}
+.score-fill{height:100%;background:var(--green);transition:width .2s;}
+.score-label{font-size:13px;color:var(--text-dim);}
+
+/* risk chip */
+.risk-chip{display:inline-block;padding:4px 12px;border-radius:2px;font-weight:600;font-size:13px;}
+
+/* document / paper output */
+.doc-wrap{background:var(--paper);color:var(--ink);border-radius:4px;padding:30px 30px 26px;box-shadow:0 1px 3px rgba(20,25,28,0.08),0 1px 12px rgba(20,25,28,0.05);border:1px solid var(--paper-line);}
+.doc-wrap h2,.doc-wrap h3,.doc-wrap h4{color:var(--ink);font-family:'Barlow Condensed',sans-serif;}
+.doc-head{border-bottom:2px solid var(--ink);padding-bottom:12px;margin-bottom:16px;}
+.doc-head h2{font-size:26px;}
+.doc-meta{font-size:11.5px;color:var(--ink-dim);margin-top:4px;font-family:'IBM Plex Mono',monospace;}
+.doc-field{margin-bottom:10px;font-size:13.5px;border-bottom:1px dotted var(--paper-line);padding-bottom:8px;}
+.doc-field b{color:var(--ink);}
+.doc-field .val{color:var(--ink-dim);}
+.doc-block{margin-bottom:14px;}
+.doc-block .lbl{font-size:11px;text-transform:none;color:var(--ink-dim);margin-bottom:3px;font-family:'IBM Plex Mono',monospace;}
+.doc-block .txt{font-size:13.5px;white-space:pre-wrap;}
+.doc-table{width:100%;min-width:480px;border-collapse:collapse;margin:0;font-size:12.5px;}
+.doc-table th{background:#eef1f7;border:1px solid var(--paper-line);padding:6px 7px;text-align:left;white-space:nowrap;}
+.doc-table td{border:1px solid var(--paper-line);padding:6px 7px;vertical-align:top;}
+.doc-empty{color:var(--text-dim);font-size:14px;padding:30px 6px;text-align:center;}
+
+/* document control panel (editable, never printed) */
+.doc-control{margin-bottom:18px;border:1px solid var(--line);border-radius:2px;padding:4px 16px 16px;background:var(--panel-2);}
+.doc-control summary{cursor:pointer;padding:10px 0;font-size:13px;font-weight:600;color:var(--text-dim);list-style:none;}
+.doc-control summary::-webkit-details-marker{display:none;}
+.doc-control summary::before{content:"▸ ";}
+.doc-control[open] summary::before{content:"▾ ";}
+.dc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr));gap:10px;margin-top:8px;}
+.dc-grid .field{margin-bottom:0;}
+
+/* controlled-document identification header (logo / company / doc no / eff date / rev no) */
+.doc-id-box{display:flex;align-items:stretch;border:1.5px solid var(--ink);border-radius:4px;overflow:hidden;margin-bottom:16px;}
+.doc-id-logo{flex:none;width:78px;display:flex;align-items:center;justify-content:center;padding:8px;border-right:1px solid var(--ink);}
+.doc-logo{max-width:60px;max-height:56px;object-fit:contain;display:block;}
+.doc-logo.placeholder{width:52px;height:52px;border:1px dashed var(--paper-line);display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--ink-dim);font-family:'IBM Plex Mono',monospace;}
+.doc-id-company{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:8px 14px;border-right:1px solid var(--ink);}
+.doc-id-company .company-name{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:17px;}
+.doc-id-company .doc-title{font-size:12px;margin-top:2px;color:var(--ink-dim);letter-spacing:.01em;}
+.doc-id-meta{flex:none;width:180px;display:flex;flex-direction:column;}
+.meta-row{flex:1;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 10px;border-bottom:1px solid var(--ink);}
+.meta-row:last-child{border-bottom:none;}
+.meta-row .meta-label{font-size:10.5px;color:var(--ink-dim);font-family:'IBM Plex Mono',monospace;white-space:nowrap;}
+.meta-row .meta-val{font-size:12.5px;font-weight:600;text-align:right;}
+
+/* prepared-by / approved-by signature block */
+.sig-table{width:100%;border-collapse:collapse;margin-top:32px;}
+.sig-table td{width:50%;padding:34px 14px 0 0;vertical-align:bottom;}
+.sig-table .sig-line{border-top:1px solid var(--ink);margin-bottom:6px;width:85%;}
+.sig-role{font-size:10.5px;font-family:'IBM Plex Mono',monospace;color:var(--ink-dim);letter-spacing:.03em;}
+.sig-person{font-size:13px;font-weight:600;margin-top:2px;}
+.sig-date{font-size:11.5px;color:var(--ink-dim);margin-top:1px;}
+
+/* ---------- PDF tools ---------- */
+.dropzone{
+  border:2px dashed var(--line);border-radius:8px;padding:32px 20px;text-align:center;
+  cursor:pointer;transition:border-color .15s ease, background .15s ease;background:var(--panel-2);
+}
+.dropzone:hover,.dropzone.drag{border-color:var(--brand);background:#eef2fb;}
+.dropzone .dz-icon{font-size:30px;margin-bottom:8px;}
+.dropzone .dz-title{font-weight:600;font-size:14.5px;}
+.dropzone .dz-sub{font-size:12.5px;color:var(--text-dim);margin-top:4px;}
+.file-chip-list{list-style:none;margin:14px 0 0;padding:0;}
+.file-chip{
+  display:flex;align-items:center;gap:10px;background:var(--panel-2);border:1px solid var(--line);
+  border-radius:6px;padding:9px 12px;margin-bottom:8px;font-size:13.5px;
+}
+.file-chip .fc-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.file-chip .fc-size{color:var(--text-dim);font-size:11.5px;flex:none;}
+.file-chip button{background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:15px;flex:none;padding:2px 4px;}
+.file-chip button:hover{color:var(--red);}
+.file-chip .fc-move{color:var(--text-dim);cursor:pointer;font-size:13px;flex:none;padding:2px 4px;}
+.file-chip .fc-move:hover{color:var(--brand);}
+.thumb-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,110px),1fr));gap:12px;margin-top:14px;}
+.thumb-card{
+  border:2px solid var(--line);border-radius:6px;padding:6px;background:var(--panel-2);position:relative;
+  transition:border-color .12s ease, opacity .12s ease;
+}
+.thumb-card.marked{opacity:0.35;border-color:var(--red);}
+.thumb-card img{width:100%;display:block;border-radius:3px;background:#fff;}
+.thumb-card .th-num{font-size:11px;text-align:center;margin-top:4px;color:var(--text-dim);}
+.thumb-card .th-actions{display:flex;justify-content:center;gap:6px;margin-top:4px;}
+.thumb-card .th-actions button{background:var(--panel);border:1px solid var(--line);border-radius:3px;font-size:11px;padding:2px 6px;cursor:pointer;}
+.thumb-card .th-actions button:hover{border-color:var(--brand);color:var(--brand);}
+.pdf-note{background:var(--panel-2);border:1px solid var(--line);border-radius:6px;padding:10px 14px;font-size:12.5px;color:var(--text-dim);margin-bottom:16px;}
+.pdf-note b{color:var(--text);}
+.sig-pad-wrap{border:1px solid var(--line);border-radius:6px;background:#fff;touch-action:none;}
+.sig-pad-wrap canvas{display:block;width:100%;cursor:crosshair;}
+.progress-line{height:4px;background:var(--panel-2);border-radius:2px;overflow:hidden;margin:10px 0;}
+.progress-line .fill{height:100%;background:var(--brand);width:0%;transition:width .2s ease;}
+.pos-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;max-width:220px;}
+.pos-grid button{padding:10px 0;border:1px solid var(--line);background:var(--panel-2);border-radius:4px;cursor:pointer;font-size:16px;}
+.pos-grid button.active{border-color:var(--brand);background:#eef2fb;color:var(--brand);}
+.coming-soon-card{max-width:600px;}
+.coming-soon-card h3{display:flex;align-items:center;gap:8px;}
+
+/* certificate */
+.cert{
+  background:var(--paper);color:var(--ink);border-radius:var(--radius);padding:40px;text-align:center;
+  border:6px double var(--ink);
+}
+.cert .kicker{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.15em;color:var(--ink-dim);}
+.cert h2{font-size:32px;margin:10px 0 2px;}
+.cert .name{font-family:'Barlow Condensed',sans-serif;font-size:clamp(22px,6vw,38px);color:var(--red);margin:18px 0 6px;border-bottom:1px solid var(--paper-line);display:inline-block;padding-bottom:6px;max-width:100%;}
+.cert .body-line{font-size:14px;margin:4px 0;}
+.cert .cert-meta{display:flex;justify-content:space-between;margin-top:34px;font-size:12px;color:var(--ink-dim);}
+
+/* map maker */
+.map-canvas{
+  width:100%;aspect-ratio:16/10;background:var(--paper);border-radius:var(--radius);position:relative;
+  overflow:hidden;cursor:crosshair;background-image:linear-gradient(var(--paper-line) 1px,transparent 1px),linear-gradient(90deg,var(--paper-line) 1px,transparent 1px);
+  background-size:24px 24px;
+}
+.map-marker{position:absolute;transform:translate(-50%,-50%);font-size:20px;user-select:none;}
+.map-palette{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+.map-palette button{padding:7px 11px;font-size:13px;border-radius:2px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);}
+.map-palette button.active{border-color:var(--brand);color:var(--brand);}
+.map-legend{list-style:none;padding:0;margin-top:10px;font-size:12.5px;color:var(--text-dim);}
+.map-legend li{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--line);}
+
+@media print{
+  @page{margin:10mm 12mm;}
+  html,body{background:#ffffff!important;margin:0;padding:0;}
+  #app{max-width:none!important;padding:0!important;margin:0!important;}
+  .topbar,.hero,.crumbs,.tool-header,.roadmap,footer{display:none!important;}
+  .card:not(:has(#print-area)){display:none!important;}
+  .card{background:#ffffff!important;box-shadow:none!important;border:none!important;padding:0!important;margin:0!important;}
+  .card>h3{display:none!important;}
+  .no-print{display:none!important;}
+  #print-area{position:static!important;width:100%;background:#ffffff;}
+  .doc-wrap,.cert{background:#ffffff!important;box-shadow:none!important;border:none!important;margin:0!important;padding:8px 4px!important;}
+  .table-scroll{overflow:visible!important;margin-bottom:6px;}
+  .doc-table,.rows-table{min-width:0!important;}
+  .doc-id-box,.sig-table{page-break-inside:avoid;}
+  .doc-id-box{margin-bottom:10px!important;}
+  .sig-table{margin-top:18px!important;}
+  .doc-block{margin-bottom:10px!important;}
+  .doc-table tr,.rows-table tr{page-break-inside:avoid;}
+  .cert{border-width:3px!important;}
+}
+@media(max-width:900px){
+  .cat-grid{grid-template-columns:1fr;}
+}
+@media(max-width:640px){
+  #app{padding:0 16px 60px;}
+  .topbar{padding:16px 0;}
+  .brand-mark{width:30px;height:30px;font-size:15px;}
+  .brand-name{font-size:16px;}
+  .brand-sub{display:none;}
+  .menu-btn{padding:8px 12px;font-size:12.5px;}
+  .menu-btn .menu-icon{font-size:13px;}
+  .menu-dropdown{min-width:190px;}
+  .hero{padding:36px 0 28px;}
+  .hero p.lead{font-size:15.5px;}
+  .gauge-row{margin-top:24px;}
+  .gauge{padding:14px 16px;min-width:120px;}
+  .section-label{font-size:19px;margin:36px 0 14px;}
+  .cat-panel{padding:18px 16px 14px;}
+  .roadmap{padding:20px 18px 18px;}
+  .chain{font-size:12.5px;}
+  .chain span.step{padding:5px 9px;}
+  .card{padding:16px;}
+  .doc-wrap{padding:18px 16px 16px;}
+  .field-row{grid-template-columns:1fr;}
+  .dc-grid{grid-template-columns:1fr 1fr;}
+  .sig-table td{width:100%;display:block;padding:20px 0 0;}
+  .cert{padding:26px 18px;}
+  .field input[type=text],.field input[type=number],.field input[type=date],.field select,.field textarea{font-size:16px;}
+  .btn{padding:10px 14px;font-size:13px;}
+  footer{flex-direction:column;}
+}
+@media(max-width:560px){
+  .dc-grid{grid-template-columns:1fr;}
+  .doc-id-box{flex-direction:column;}
+  .doc-id-logo{width:100%;border-right:none;border-bottom:1px solid var(--ink);padding:10px;}
+  .doc-id-company{border-right:none;border-bottom:1px solid var(--ink);padding:10px;}
+  .doc-id-meta{width:100%;}
+  .doc-id-company .company-name{font-size:15px;}
+  .doc-id-company .doc-title{font-size:10.5px;}
+  .gauge{min-width:100%;}
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+/* ============================= DATA ============================= */
+
+const SEVERITY = [
+  {v:1,label:"1 — Negligible (no injury / first aid only)"},
+  {v:2,label:"2 — Minor (minor injury, no lost time)"},
+  {v:3,label:"3 — Moderate (lost-time injury)"},
+  {v:4,label:"4 — Major (serious injury / permanent disability)"},
+  {v:5,label:"5 — Catastrophic (fatality)"}
+];
+const LIKELIHOOD = [
+  {v:1,label:"1 — Rare (exceptional circumstances)"},
+  {v:2,label:"2 — Unlikely (could occur at some time)"},
+  {v:3,label:"3 — Possible (might occur at some time)"},
+  {v:4,label:"4 — Likely (will probably occur)"},
+  {v:5,label:"5 — Almost certain (expected frequently)"}
+];
+function riskBand(score){
+  if(score<=4) return {label:"Low",text:"#1e7a4d",bg:"#e1f3e8"};
+  if(score<=9) return {label:"Medium",text:"#a3660f",bg:"#faecd8"};
+  if(score<=15) return {label:"High",text:"#c15b12",bg:"#fbe3d0"};
+  return {label:"Very High",text:"#b3362a",bg:"#f9dcd8"};
+}
+
+function esc(s){
+  return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+function todayStr(){
+  return new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+}
+function download(filename, text){
+  const blob=new Blob([text],{type:"text/plain"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download=filename;
+  document.body.appendChild(a);a.click();a.remove();
+}
+
+/* ---------- document identity: company + per-document control fields ---------- */
+let ORG = {companyName:"", logo:null}; // shared across tools for the session
+
+function newDocMeta(){
+  return {docNo:"",effDate:"",revNo:"01",prepName:"",prepDesig:"",prepDate:"",apprName:"",apprDesig:"",apprDate:""};
+}
+function docControlHTML(meta){
+  return `
+  <details class="doc-control no-print" open>
+    <summary>Document control &amp; sign-off (shown in the header/footer of the document)</summary>
+    <div class="dc-grid">
+      <div class="field"><label>Company name</label><input type="text" data-dc="companyName" value="${esc(ORG.companyName)}" placeholder="Your Company Ltd."></div>
+      <div class="field"><label>Company logo</label><input type="file" accept="image/*" data-dc="logo"></div>
+      <div class="field"><label>Document No.</label><input type="text" data-dc="docNo" value="${esc(meta.docNo)}" placeholder="e.g. ESF-EHS-06"></div>
+      <div class="field"><label>Effective date</label><input type="date" data-dc="effDate" value="${esc(meta.effDate)}"></div>
+      <div class="field"><label>Revision No.</label><input type="text" data-dc="revNo" value="${esc(meta.revNo)}" placeholder="e.g. 01"></div>
+    </div>
+    <div class="dc-grid" style="margin-top:12px;">
+      <div class="field"><label>Prepared by — name</label><input type="text" data-dc="prepName" value="${esc(meta.prepName)}"></div>
+      <div class="field"><label>Prepared by — designation</label><input type="text" data-dc="prepDesig" value="${esc(meta.prepDesig)}" placeholder="e.g. Sr. Officer - EHS"></div>
+      <div class="field"><label>Prepared date</label><input type="date" data-dc="prepDate" value="${esc(meta.prepDate)}"></div>
+      <div class="field"><label>Approved by — name</label><input type="text" data-dc="apprName" value="${esc(meta.apprName)}"></div>
+      <div class="field"><label>Approved by — designation</label><input type="text" data-dc="apprDesig" value="${esc(meta.apprDesig)}" placeholder="e.g. Sr. Manager - QA"></div>
+      <div class="field"><label>Approved date</label><input type="date" data-dc="apprDate" value="${esc(meta.apprDate)}"></div>
+    </div>
+  </details>`;
+}
+function wireDocControl(root, meta, onChange){
+  root.querySelectorAll("[data-dc]").forEach(inp=>{
+    if(inp.dataset.dc==="logo"){
+      inp.onchange=()=>{
+        const file=inp.files && inp.files[0];
+        if(!file) return;
+        const reader=new FileReader();
+        reader.onload=()=>{ ORG.logo=reader.result; onChange(); };
+        reader.readAsDataURL(file);
+      };
+    } else if(inp.dataset.dc==="companyName"){
+      inp.oninput=()=>{ ORG.companyName=inp.value; onChange(); };
+    } else {
+      inp.oninput=()=>{ meta[inp.dataset.dc]=inp.value; onChange(); };
+      inp.onchange=()=>{ meta[inp.dataset.dc]=inp.value; onChange(); };
+    }
+  });
+}
+function docHeaderHTML(title, meta){
+  const logoHTML = ORG.logo ? `<img src="${ORG.logo}" class="doc-logo">` : `<div class="doc-logo placeholder">LOGO</div>`;
+  return `
+  <div class="doc-id-box">
+    <div class="doc-id-logo">${logoHTML}</div>
+    <div class="doc-id-company">
+      <div class="company-name">${esc(ORG.companyName||"Your Company Name")}</div>
+      <div class="doc-title">${esc(title)}</div>
+    </div>
+    <div class="doc-id-meta">
+      <div class="meta-row"><span class="meta-label">Document No.</span><span class="meta-val">${esc(meta.docNo||"—")}</span></div>
+      <div class="meta-row"><span class="meta-label">Effective Date</span><span class="meta-val">${esc(meta.effDate||"—")}</span></div>
+      <div class="meta-row"><span class="meta-label">Revision No.</span><span class="meta-val">${esc(meta.revNo||"—")}</span></div>
+    </div>
+  </div>`;
+}
+function docSignatureHTML(meta){
+  return `
+  <table class="sig-table"><tr>
+    <td>
+      <div class="sig-line"></div>
+      <div class="sig-role">PREPARED BY</div>
+      <div class="sig-person">${esc(meta.prepName||"—")}${meta.prepDesig?" · "+esc(meta.prepDesig):""}</div>
+      <div class="sig-date">Date: ${esc(meta.prepDate||"—")}</div>
+    </td>
+    <td>
+      <div class="sig-line"></div>
+      <div class="sig-role">APPROVED BY</div>
+      <div class="sig-person">${esc(meta.apprName||"—")}${meta.apprDesig?" · "+esc(meta.apprDesig):""}</div>
+      <div class="sig-date">Date: ${esc(meta.apprDate||"—")}</div>
+    </td>
+  </tr></table>`;
+}
+function docMetaText(meta){
+  return `Company: ${ORG.companyName||"-"}\nDocument No: ${meta.docNo||"-"}   Effective Date: ${meta.effDate||"-"}   Revision No: ${meta.revNo||"-"}\n`;
+}
+function sigMetaText(meta){
+  return `\nPrepared By: ${meta.prepName||"-"}${meta.prepDesig?" ("+meta.prepDesig+")":""}   Date: ${meta.prepDate||"-"}\nApproved By: ${meta.apprName||"-"}${meta.apprDesig?" ("+meta.apprDesig+")":""}   Date: ${meta.apprDate||"-"}\n`;
+}
+
+/* ---------- checklist item sets ---------- */
+const CHECKLISTS = {
+  "fire-inspection":["Fire extinguishers charged, tagged and accessible","Fire exits and escape routes unobstructed","Exit signage illuminated and visible","Fire alarm / detection system functional","Sprinkler system serviced and pressurised","Electrical panels clear of storage, doors closed","Flammable material storage compliant (bunding, ventilation)","Fire hydrant system pressure adequate","Smoke / heat detectors tested this quarter","Emergency lighting functional","Mock fire drill conducted in last 6 months","Assembly / muster point clearly marked","Fire NOC / license valid and displayed","Hose reels in place and undamaged","Fire pump room clean, accessible, log maintained"],
+  "ppe":["Safety helmet worn where required","Safety shoes / boots in good condition","Hand gloves appropriate to task","Safety goggles / face shield for eye hazards","Ear protection in high-noise areas","Hi-visibility vest worn","Respiratory protection available if applicable","Fall-protection harness for height work","Chemical-resistant apron for handling work","PPE stock and replacement register maintained"],
+  "loto":["Equipment / machine to be isolated identified","All energy sources identified (electrical, mechanical, hydraulic, pneumatic, thermal)","Lockout devices applied to each isolation point","Danger tags attached with worker name and date","Zero energy state verified before work starts","List of authorised LOTO personnel up to date","Group lockout procedure followed for multiple workers","Equipment function-tested before returning to service","Locks/tags removed only by the person who applied them","Machine-specific LOTO procedure documented and available"],
+  "height":["Work-at-height permit obtained","Fall-arrest system / harness and lifeline in place","Guardrails and toe-boards installed at edges","Scaffold inspected and inspection tag current","Ladder condition checked before use","Weather conditions assessed as safe","Rescue plan in place for suspended worker","Workers trained and medically fit for height work","Tools and materials secured against dropping","Area below barricaded and signed"],
+  "confined-space":["Confined space entry permit issued","Atmosphere tested for O2, LEL and toxic gases before entry","Continuous gas monitoring during occupancy","Mechanical ventilation provided","Attendant stationed outside at all times","Communication method established with entrants","Rescue and retrieval equipment available at site","Entrants trained in confined-space procedures","Energy sources isolated (LOTO applied)","Emergency rescue plan in place and briefed"],
+  "iso14001":["Context of the organisation and interested parties documented","Environmental policy defined and communicated","Environmental aspects and impacts register maintained","Compliance obligations (legal/other) identified and tracked","Objectives and targets set with programmes to achieve them","Roles, responsibilities and competence defined","Operational controls for significant aspects in place","Emergency preparedness and response procedure exists","Monitoring, measurement and calibration records maintained","Internal audits conducted per schedule","Management review conducted with required inputs","Nonconformity and corrective action process followed"],
+  "iso45001":["Leadership commitment to OH&S demonstrated","Worker participation and consultation process in place","Hazard identification and risk assessment process documented","Legal and other OH&S requirements identified and tracked","OH&S objectives and programmes established","Operational controls for significant risks in place","Emergency preparedness and response procedure exists","Incident investigation process followed and records kept","Internal audits conducted per schedule","Management review conducted with required inputs"],
+  "legal-compliance":["Factory license valid and displayed","Fire NOC valid","Pollution Control Board Consent to Operate (CTO) valid","Boiler certificate valid (if applicable)","Lift / crane / pressure-vessel licenses valid","Effluent / emission discharge permit valid","Hazardous waste authorisation valid","Contract labour license valid","ESI and PF registration active and returns filed","Statutory registers under Factories Act maintained","Statutory welfare facilities (canteen, crèche, first aid) compliant"],
+  "factory-ehs-audit":["Fire safety systems inspected and functional","Electrical safety (earthing, panels, cabling) in order","Machine guarding in place on all equipment","PPE issued and used correctly","Housekeeping and material storage acceptable","Hazardous chemicals stored and labelled per norms","Effluent treatment plant operating within norms","Waste segregation and disposal compliant","First-aid facilities and trained first-aiders available","Emergency preparedness plan current and drilled","Statutory licenses and registers up to date","Contractor safety management process in place","Incident/accident records maintained and analysed","Training records for employees maintained","Management review of EHS performance conducted"],
+  "fire-hydrant":["Hydrant valve opens and closes smoothly","Hydrant outlet caps present and undamaged","Hose reel / hose box accessible and unlocked","Hydrant system pressure within specified range under flow","No visible leakage at hydrant riser","Hydrant clearly numbered and signposted","Landing valve threads undamaged and hose-compatible","Fire brigade connection (FBC) accessible and unobstructed","Hydrant painted red and easily identifiable","Last flow test date recorded and within schedule"],
+  "machine-guarding":["All rotating parts (belts, pulleys, shafts) guarded","Point-of-operation guards fitted and functional","Interlock switches on guards working correctly","Guards free of damage, cracks or missing fasteners","Emergency stop button accessible and functional","Guard removal requires tools, not accessible by hand","Warning signage present on hazardous machinery","Two-hand control functioning correctly (if applicable)","Light curtains / safety sensors functional (if fitted)","Guarding inspected and logged as per PM schedule"],
+  "electrical-safety":["Electrical panels closed and locked, danger signage displayed","No exposed live wires or damaged insulation","Earthing / grounding connections intact and tested","ELCB / RCCB functional and tested (push-button test)","Distribution boards labelled and accessible, not obstructed","Extension cords / temporary wiring in good condition, not overloaded","Panel room ventilation and housekeeping acceptable","Thermography / hot-spot inspection conducted within schedule","Only authorised electricians work on live equipment","Lockout-tagout used for maintenance on electrical circuits"],
+  "housekeeping-audit":["Sort — unnecessary items removed from work area","Set in order — tools and materials have a marked place","Shine — work area and equipment kept clean","Standardise — visual controls and labels in place","Sustain — audit schedule followed and results displayed","Aisles and walkways kept clear and marked","Waste bins available, labelled and not overflowing","Materials stacked safely with no risk of collapse","Spill containment / absorbents available where needed","Fire exits and electrical panels kept clear of obstruction"],
+  "contractor-audit":["Contractor safety induction completed before work start","Valid work permit obtained for the activity","Contractor workers have valid PPE for the task","Contractor equipment / tools inspected and tagged safe","Contractor insurance and statutory compliance documents valid","Contractor supervisor present on site during work","Emergency procedures briefed to contractor workers","Contractor work area barricaded / signed appropriately","Waste generated by the contractor disposed of correctly","Contractor safety performance recorded for this job"]
+};
+
+/* ---------- generic field helper ---------- */
+function f(key,label,type,extra){return Object.assign({key,label,type},extra||{});}
+
+/* ---------- generator tool configs ---------- */
+const GENERATORS = {
+  "fire-drill":{
+    docTitle:"Fire / Emergency Evacuation Drill Plan",
+    signatures:true,
+    fields:[
+      f("facility","Facility name","text"),
+      f("date","Drill date","date"),
+      f("time","Drill time","text"),
+      f("employees","Employees to participate","number"),
+      f("assembly","Assembly point","text"),
+      f("coordinator","Drill coordinator","text"),
+      f("scenario","Scenario","select",{options:["Fire in production area","Electrical fire / panel room","Chemical spill with fire","Fire in warehouse / storage","Boiler / utility area fire"]}),
+      f("objectives","Objectives","textarea"),
+      f("evaluation","Evaluation criteria","textarea")
+    ]
+  },
+  "emergency-contacts":{
+    docTitle:"Emergency Contact List",
+    fields:[
+      f("facility","Facility name","text"),
+      f("address","Facility address","textarea"),
+      f("contacts","Internal / external contacts","rows",{cols:[
+        {key:"name",label:"Name",type:"text"},
+        {key:"role",label:"Designation",type:"text"},
+        {key:"dept",label:"Department",type:"text"},
+        {key:"phone",label:"Phone",type:"text"},
+        {key:"alt",label:"Alt. phone",type:"text"}
+      ],defaultRows:[
+        {name:"Fire Brigade",role:"Emergency service",dept:"—",phone:"101",alt:""},
+        {name:"Police",role:"Emergency service",dept:"—",phone:"100",alt:""},
+        {name:"Ambulance",role:"Emergency service",dept:"—",phone:"108",alt:""},
+        {name:"National Poison Control",role:"Emergency service",dept:"—",phone:"1800-116-117",alt:""}
+      ]})
+    ]
+  },
+  "hira":{
+    docTitle:"Hazard Identification & Risk Assessment (HIRA)",
+    intro:"Pick a work area below to auto-fill common hazards and controls — then adjust severity/likelihood and add anything specific to your site.",
+    fields:[
+      f("facility","Facility / department","text"),
+      f("preparedBy","Prepared by","text"),
+      f("date","Date","date"),
+      f("rows","Hazard register","rows",{cols:[
+        {key:"activity",label:"Activity",type:"text"},
+        {key:"hazard",label:"Hazard",type:"text"},
+        {key:"controls",label:"Existing controls",type:"text"},
+        {key:"sev",label:"Severity(1-5)",type:"select",options:["1","2","3","4","5"]},
+        {key:"lik",label:"Likelihood(1-5)",type:"select",options:["1","2","3","4","5"]},
+        {key:"addControls","label":"Additional controls",type:"text"},
+        {key:"owner",label:"Responsible",type:"text"}
+      ],defaultRows:[{}]})
+    ],
+    postProcess:(data)=>{
+      data.rows.forEach(r=>{
+        const s=Number(r.sev||0), l=Number(r.lik||0);
+        r.score = s&&l ? s*l : "";
+        r.level = s&&l ? riskBand(s*l).label : "";
+      });
+    },
+    rowsRenderExtra:["score","level"],
+    templates:[
+      {label:"Machine Shop / Production Floor",data:{rows:[
+        {activity:"Operating production machine",hazard:"Contact with moving parts",controls:"Machine guards, interlocks",sev:"4",lik:"2",addControls:"Periodic guard inspection, operator training",owner:"Shift Supervisor"},
+        {activity:"Material handling near machines",hazard:"Manual handling injury",controls:"Team lifting for heavy items",sev:"3",lik:"3",addControls:"Provide handling aids/trolleys",owner:"Production Supervisor"},
+        {activity:"Housekeeping around machines",hazard:"Slips/trips from oil spills, debris",controls:"Routine cleaning schedule",sev:"2",lik:"3",addControls:"Spill kits at machine stations",owner:"Area Supervisor"}
+      ]}},
+      {label:"Welding Bay",data:{rows:[
+        {activity:"Arc welding",hazard:"Arc flash, burns, fire",controls:"PPE, hot work permit, fire watch",sev:"4",lik:"3",addControls:"Fume extraction, welding screens",owner:"Welding Supervisor"},
+        {activity:"Gas cutting",hazard:"Explosion from cylinder mishandling",controls:"Secure cylinders upright, valve caps",sev:"5",lik:"2",addControls:"Regular cylinder inspection",owner:"EHS Officer"}
+      ]}},
+      {label:"Chemical Storage & ETP",data:{rows:[
+        {activity:"Chemical unloading / storage",hazard:"Spill, skin/eye contact",controls:"SDS-based handling, bunded storage",sev:"4",lik:"2",addControls:"Spill kit, PPE availability",owner:"Store In-charge"},
+        {activity:"ETP dosing operation",hazard:"Chemical splash, fumes",controls:"Dosing PPE, local exhaust ventilation",sev:"3",lik:"2",addControls:"Automated dosing where feasible",owner:"ETP Operator"}
+      ]}},
+      {label:"Electrical Maintenance",data:{rows:[
+        {activity:"Panel maintenance",hazard:"Electric shock, arc flash",controls:"LOTO, insulated tools, PPE",sev:"5",lik:"2",addControls:"Thermography inspection schedule",owner:"Electrical Supervisor"},
+        {activity:"Cable routing / repair",hazard:"Contact with live conductors",controls:"De-energise before work, verify with tester",sev:"4",lik:"2",addControls:"Permit to work system",owner:"Electrician"}
+      ]}},
+      {label:"Warehouse & Material Handling",data:{rows:[
+        {activity:"Forklift operation",hazard:"Collision, load fall",controls:"Licensed operators, speed limits",sev:"4",lik:"3",addControls:"Pedestrian segregation, mirrors at blind spots",owner:"Warehouse Supervisor"},
+        {activity:"Manual stacking of goods",hazard:"Falling stock, manual handling injury",controls:"Safe stacking height, racking inspection",sev:"3",lik:"3",addControls:"Training on stacking limits",owner:"Store Keeper"}
+      ]}}
+    ]
+  },
+  "ptw":{
+    docTitle:"Permit To Work",
+    intro:"Pick the type of work below to auto-fill typical hazards, precautions and isolations — then add the location, timing and names.",
+    fields:[
+      f("permitNo","Permit number","text"),
+      f("date","Date issued","date"),
+      f("type","Type of work","select",{options:["Hot work","Cold work","Work at height","Confined space entry","Electrical work","Excavation"]}),
+      f("location","Location / equipment","text"),
+      f("description","Description of work","textarea"),
+      f("hazards","Hazards identified","textarea"),
+      f("precautions","Precautions / PPE required","textarea"),
+      f("isolations","Isolations required (LOTO)","text"),
+      f("validFrom","Valid from","text"),
+      f("validTo","Valid to","text"),
+      f("issuer","Permit issuer","text"),
+      f("receiver","Permit receiver","text")
+    ],
+    templates:[
+      {label:"Hot Work",data:{
+        type:"Hot work",
+        hazards:"Fire from sparks/heat, burns, arc flash, toxic fumes",
+        precautions:"Clear combustibles within 10m, fire extinguisher on standby, fire watch during and 30 min after work, use welding screens, ensure ventilation",
+        isolations:"Isolate nearby flammable material sources; de-energise adjacent equipment if required"
+      }},
+      {label:"Cold Work",data:{
+        type:"Cold work",
+        hazards:"General mechanical/manual handling hazards, minor cuts, slips",
+        precautions:"Use appropriate hand tools, PPE (gloves, safety shoes, goggles), keep work area tidy",
+        isolations:"Isolate equipment being worked on if moving parts are involved"
+      }},
+      {label:"Work at Height",data:{
+        type:"Work at height",
+        hazards:"Fall from height, dropped objects, structural failure",
+        precautions:"Use fall-arrest harness and lifeline, inspected scaffold/ladder, barricade area below, check weather conditions",
+        isolations:"Isolate any powered equipment near the work area"
+      }},
+      {label:"Confined Space Entry",data:{
+        type:"Confined space entry",
+        hazards:"Oxygen deficiency, toxic/flammable atmosphere, engulfment",
+        precautions:"Test atmosphere before and during entry, continuous ventilation, attendant stationed outside, rescue equipment ready",
+        isolations:"LOTO all energy sources feeding the space; blank/blind connecting pipelines"
+      }},
+      {label:"Electrical Work",data:{
+        type:"Electrical work",
+        hazards:"Electric shock, arc flash, burns",
+        precautions:"Use insulated tools and voltage-rated PPE, verify zero energy with a tester",
+        isolations:"Apply LOTO on the circuit; verify isolation with authorised person before starting"
+      }},
+      {label:"Excavation",data:{
+        type:"Excavation",
+        hazards:"Cave-in / collapse, underground utility strike, falls into excavation",
+        precautions:"Shore or slope excavation per soil type, barricade the area, provide safe access/egress",
+        isolations:"Identify and mark underground utilities before digging; obtain excavation clearance"
+      }}
+    ]
+  },
+  "sop":{
+    docTitle:"Standard Operating Procedure",
+    intro:"Pick a process below to auto-fill the Purpose, Scope, Responsibility, PPE and Steps — then just edit the parts specific to your machine or site.",
+    fields:[
+      f("title","SOP title","text"),
+      f("purpose","Purpose","textarea"),
+      f("scope","Scope","textarea"),
+      f("responsibility","Responsibility","text"),
+      f("ppe","PPE required","text"),
+      f("steps","Procedure steps","rows",{cols:[
+        {key:"no",label:"Step",type:"text"},
+        {key:"desc",label:"Description",type:"text"}
+      ],defaultRows:[{}]}),
+      f("references","References","text")
+    ],
+    templates:[
+      {label:"Machine Operation (General)",data:{
+        title:"Machine Operation SOP",
+        purpose:"To provide safe and standardised steps for operating this machine to prevent injury to personnel and damage to equipment.",
+        scope:"Applicable to all operators and maintenance personnel operating this machine in the production area.",
+        responsibility:"Machine Operator, Shift Supervisor, EHS Department",
+        ppe:"Safety helmet, safety shoes, hand gloves, safety goggles, ear protection",
+        steps:[
+          {no:"1",desc:"Inspect machine guards, emergency stop and safety interlocks before starting."},
+          {no:"2",desc:"Check lubrication, oil levels and coolant as per the maintenance checklist."},
+          {no:"3",desc:"Ensure the work area is clear of obstructions and unauthorised personnel."},
+          {no:"4",desc:"Start the machine at idle/no-load and confirm normal sound and vibration."},
+          {no:"5",desc:"Operate the machine strictly as per the parameters specified in the job card."},
+          {no:"6",desc:"Stop the machine immediately if any abnormal sound, vibration or smell is observed."},
+          {no:"7",desc:"Switch off, isolate and clean the machine at the end of the shift."},
+          {no:"8",desc:"Report any defect or near-miss to the shift supervisor immediately."}
+        ],
+        references:"Factories Act 1948; machine OEM manual; HIRA for this machine"
+      }},
+      {label:"Material Handling / Manual Lifting",data:{
+        title:"Manual Material Handling SOP",
+        purpose:"To lay down the safe method for manual lifting and material handling to prevent musculoskeletal injuries.",
+        scope:"Applicable to all employees involved in manual material handling activities.",
+        responsibility:"Production Operator, Store Keeper, EHS Department",
+        ppe:"Hand gloves, safety shoes, back-support belt for repetitive lifting",
+        steps:[
+          {no:"1",desc:"Assess the load weight and size; use a mechanical aid above 20 kg per person."},
+          {no:"2",desc:"Plan the route and clear obstructions before lifting."},
+          {no:"3",desc:"Position feet shoulder-width apart, close to the load."},
+          {no:"4",desc:"Bend at the knees, not the waist, keeping the back straight."},
+          {no:"5",desc:"Grip the load firmly and lift using the leg muscles, not the back."},
+          {no:"6",desc:"Carry the load close to the body and avoid twisting while carrying."},
+          {no:"7",desc:"Set the load down using the same bend-knees technique."},
+          {no:"8",desc:"For team lifting, coordinate movement with a designated leader."}
+        ],
+        references:"Factories Act 1948; ergonomics / manual handling guidelines"
+      }},
+      {label:"Forklift / MHE Operation",data:{
+        title:"Forklift Operation SOP",
+        purpose:"To define the safe operating procedure for forklifts / material handling equipment to prevent accidents and equipment damage.",
+        scope:"Applicable to all licensed forklift operators in the plant.",
+        responsibility:"Forklift Operator, Warehouse Supervisor, EHS Department",
+        ppe:"Safety helmet, safety shoes, hi-visibility vest",
+        steps:[
+          {no:"1",desc:"Conduct a pre-operation inspection of tyres, brakes, horn and lights."},
+          {no:"2",desc:"Verify the operator holds a valid internal forklift license."},
+          {no:"3",desc:"Check the load capacity chart; do not exceed rated load."},
+          {no:"4",desc:"Sound the horn at blind corners, intersections and pedestrian crossings."},
+          {no:"5",desc:"Keep forks low (150–200mm) while travelling, mast tilted back."},
+          {no:"6",desc:"Maintain a safe speed and stopping distance at all times."},
+          {no:"7",desc:"Do not carry passengers or lift personnel on the forks."},
+          {no:"8",desc:"Park with forks lowered, engine off, brake applied and key removed."}
+        ],
+        references:"IS 4083; plant traffic management plan"
+      }},
+      {label:"Welding & Cutting",data:{
+        title:"Welding & Cutting SOP",
+        purpose:"To provide a safe method of work for welding and gas cutting operations to prevent fire, burns and toxic fume exposure.",
+        scope:"Applicable to all welders and hot-work personnel.",
+        responsibility:"Welder, Hot Work Permit Issuer, EHS Department",
+        ppe:"Welding helmet/face shield, leather apron, welding gloves, safety shoes, fire-resistant clothing",
+        steps:[
+          {no:"1",desc:"Obtain a valid hot work permit before starting."},
+          {no:"2",desc:"Clear combustible material within 10 metres; keep a fire extinguisher nearby."},
+          {no:"3",desc:"Inspect cables, hoses, torch and earthing connections for damage."},
+          {no:"4",desc:"Use welding screens to protect nearby personnel from arc flash."},
+          {no:"5",desc:"Ensure adequate ventilation or fume extraction is in place."},
+          {no:"6",desc:"Weld/cut only as per the approved procedure and parameters."},
+          {no:"7",desc:"Conduct a fire watch for at least 30 minutes after work completion."},
+          {no:"8",desc:"Store cylinders upright and secured, valves closed after use."}
+        ],
+        references:"IS 818; hot work permit procedure"
+      }},
+      {label:"Chemical Handling & Storage",data:{
+        title:"Chemical Handling & Storage SOP",
+        purpose:"To provide safe handling, storage and spill-response procedures for chemicals used at the facility.",
+        scope:"Applicable to all personnel handling or storing chemicals.",
+        responsibility:"Chemical Handler, Store In-charge, EHS Department",
+        ppe:"Chemical-resistant gloves, goggles/face shield, apron, respirator as per SDS",
+        steps:[
+          {no:"1",desc:"Refer to the Safety Data Sheet (SDS) before handling any chemical."},
+          {no:"2",desc:"Check container labelling and integrity before use."},
+          {no:"3",desc:"Use only in designated, ventilated areas with spill containment."},
+          {no:"4",desc:"Do not mix incompatible chemicals; store as per the compatibility chart."},
+          {no:"5",desc:"Use secondary containment/bunding for liquid chemical storage."},
+          {no:"6",desc:"Keep a spill kit and eyewash/safety shower accessible near the storage area."},
+          {no:"7",desc:"In case of a spill, evacuate, ventilate and use the spill kit as per SDS."},
+          {no:"8",desc:"Dispose of empty containers and waste as per the hazardous waste procedure."}
+        ],
+        references:"Manufacture, Storage and Import of Hazardous Chemicals Rules 1989; SDS"
+      }},
+      {label:"Boiler Operation",data:{
+        title:"Boiler Operation SOP",
+        purpose:"To define the safe start-up, operation and shutdown procedure for the boiler.",
+        scope:"Applicable to certified boiler operators.",
+        responsibility:"Boiler Operator, Utility In-charge, EHS Department",
+        ppe:"Safety helmet, safety shoes, heat-resistant gloves, safety goggles",
+        steps:[
+          {no:"1",desc:"Verify the boiler attendant holds a valid competency certificate."},
+          {no:"2",desc:"Check water level, pressure gauges and safety valves before start-up."},
+          {no:"3",desc:"Perform blow-down of the water level gauge glass as per schedule."},
+          {no:"4",desc:"Start up gradually as per the OEM start-up procedure, monitoring pressure rise."},
+          {no:"5",desc:"Continuously monitor pressure, temperature and water level during operation."},
+          {no:"6",desc:"Test the safety valve and low-water cut-off as per the statutory schedule."},
+          {no:"7",desc:"Shut down following the OEM sequence; do not force-cool."},
+          {no:"8",desc:"Record all readings in the boiler log book each shift."}
+        ],
+        references:"Indian Boilers Act 1923; IBR regulations"
+      }},
+      {label:"Electrical Panel / Switchgear Operation",data:{
+        title:"Electrical Panel Operation SOP",
+        purpose:"To provide a safe procedure for operating and switching electrical panels / switchgear.",
+        scope:"Applicable to authorised electricians and panel operators.",
+        responsibility:"Electrician, Electrical Supervisor, EHS Department",
+        ppe:"Insulated gloves, non-conductive-sole safety shoes, face shield/arc-flash suit as applicable",
+        steps:[
+          {no:"1",desc:"Confirm you are an authorised person for this panel/voltage level."},
+          {no:"2",desc:"Inspect the panel visually for damage, moisture or foreign material."},
+          {no:"3",desc:"Use insulated tools and PPE rated for the voltage."},
+          {no:"4",desc:"Stand to the side, not directly in front, when operating breakers/switches."},
+          {no:"5",desc:"Follow the correct switching sequence as per the single-line diagram."},
+          {no:"6",desc:"Never operate a panel with the door open unless specifically justified and permitted."},
+          {no:"7",desc:"For any maintenance, apply lockout-tagout before opening the panel."},
+          {no:"8",desc:"Report any abnormality (heat, sound, smell) immediately and de-energise if safe."}
+        ],
+        references:"IE Rules 1956 / CEA regulations; LOTO procedure"
+      }},
+      {label:"Confined Space Entry",data:{
+        title:"Confined Space Entry SOP",
+        purpose:"To define the safe entry procedure into confined spaces to prevent asphyxiation and other hazards.",
+        scope:"Applicable to all personnel entering confined spaces such as tanks, pits and vessels.",
+        responsibility:"Entrant, Attendant, Permit Issuer, EHS Department",
+        ppe:"Gas detector, safety harness with lifeline, respiratory protection as required",
+        steps:[
+          {no:"1",desc:"Obtain a confined space entry permit before starting work."},
+          {no:"2",desc:"Isolate all energy sources feeding the space (LOTO)."},
+          {no:"3",desc:"Test the atmosphere for oxygen, LEL and toxic gases before entry."},
+          {no:"4",desc:"Ventilate mechanically and maintain continuous gas monitoring."},
+          {no:"5",desc:"Station a trained attendant outside at all times with communication."},
+          {no:"6",desc:"Use a harness and retrieval line for vertical entries."},
+          {no:"7",desc:"Evacuate immediately if the gas alarm activates or the attendant signals."},
+          {no:"8",desc:"Close out the permit and confirm the space is empty after work completion."}
+        ],
+        references:"Factories Act 1948; confined space entry procedure"
+      }},
+      {label:"Waste Segregation & Disposal",data:{
+        title:"Waste Segregation & Disposal SOP",
+        purpose:"To define the procedure for segregating and disposing of waste generated at the facility.",
+        scope:"Applicable to all departments generating waste.",
+        responsibility:"Shop Floor Supervisor, EHS Department, Store In-charge",
+        ppe:"Hand gloves, safety shoes, mask for hazardous waste",
+        steps:[
+          {no:"1",desc:"Segregate waste at source into general, recyclable and hazardous categories."},
+          {no:"2",desc:"Use colour-coded bins/containers as per the plant waste management plan."},
+          {no:"3",desc:"Store hazardous waste in a designated, labelled, covered storage area."},
+          {no:"4",desc:"Weigh and log quantities before handing over for disposal."},
+          {no:"5",desc:"Hand over hazardous waste only to authorised vendors with a valid manifest."},
+          {no:"6",desc:"Retain manifest copies and disposal certificates for statutory records."},
+          {no:"7",desc:"Conduct periodic housekeeping checks of waste storage areas."},
+          {no:"8",desc:"Report any leakage or spillage from waste containers immediately."}
+        ],
+        references:"Hazardous and Other Wastes (Management & Transboundary Movement) Rules 2016"
+      }},
+      {label:"Housekeeping / 5S",data:{
+        title:"Housekeeping (5S) SOP",
+        purpose:"To maintain a clean, organised and hazard-free workplace through structured housekeeping practice.",
+        scope:"Applicable to all work areas and employees.",
+        responsibility:"All Employees, Area Supervisor, EHS Department",
+        ppe:"As applicable to the work area",
+        steps:[
+          {no:"1",desc:"Sort — remove unnecessary items from the work area."},
+          {no:"2",desc:"Set in order — assign and mark a fixed place for tools and materials."},
+          {no:"3",desc:"Shine — clean the work area and equipment at the end of each shift."},
+          {no:"4",desc:"Standardise — use visual controls, labels and floor markings."},
+          {no:"5",desc:"Sustain — follow the housekeeping audit schedule and display results."},
+          {no:"6",desc:"Keep aisles, exits and fire equipment access clear at all times."},
+          {no:"7",desc:"Dispose of waste in designated bins immediately, not left to accumulate."},
+          {no:"8",desc:"Report spills or hazards for immediate correction."}
+        ],
+        references:"5S / lean housekeeping standard"
+      }},
+      {label:"PPE Donning & Doffing",data:{
+        title:"PPE Donning & Doffing SOP",
+        purpose:"To provide the correct sequence for putting on and removing personal protective equipment.",
+        scope:"Applicable to all employees required to use PPE for their task.",
+        responsibility:"Employee, Area Supervisor, EHS Department",
+        ppe:"As specified for the task (helmet, goggles, gloves, respirator, etc.)",
+        steps:[
+          {no:"1",desc:"Inspect each PPE item for damage before use; do not use damaged PPE."},
+          {no:"2",desc:"Don PPE in sequence: coverall, boots, then gloves, then eye/face protection, then respiratory protection last."},
+          {no:"3",desc:"Adjust straps and fit for comfort and full protection, with no gaps."},
+          {no:"4",desc:"Perform a fit-check (e.g. respirator seal check) before entering the hazard area."},
+          {no:"5",desc:"Do not touch the face or adjust PPE with contaminated gloves during the task."},
+          {no:"6",desc:"Doff PPE in reverse order, avoiding contact with the outer contaminated surface."},
+          {no:"7",desc:"Dispose of single-use PPE and clean/store reusable PPE as instructed."},
+          {no:"8",desc:"Wash hands thoroughly after doffing."}
+        ],
+        references:"PPE manufacturer instructions; task-specific HIRA"
+      }},
+      {label:"Fire Extinguisher Usage",data:{
+        title:"Fire Extinguisher Usage SOP",
+        purpose:"To provide the correct method for using a portable fire extinguisher in the event of a small fire.",
+        scope:"Applicable to all employees trained in fire response.",
+        responsibility:"All Trained Employees, Fire Warden, EHS Department",
+        ppe:"None required for extinguisher use itself; do not attempt without basic fire training",
+        steps:[
+          {no:"1",desc:"Raise the alarm and inform others before attempting to fight the fire."},
+          {no:"2",desc:"Select the correct extinguisher type for the class of fire (A/B/C/electrical)."},
+          {no:"3",desc:"Pull the safety pin from the extinguisher handle."},
+          {no:"4",desc:"Aim the nozzle/hose at the base of the fire, not the flames."},
+          {no:"5",desc:"Squeeze the handle to discharge the agent."},
+          {no:"6",desc:"Sweep side to side across the base of the fire until it is out."},
+          {no:"7",desc:"Maintain a clear escape route behind you at all times."},
+          {no:"8",desc:"If the fire does not go out quickly or grows, evacuate and close the door behind you."}
+        ],
+        references:"IS 2190; fire response training"
+      }}
+    ]
+  },
+  "inspection-report":{
+    docTitle:"Inspection Report",
+    signatures:true,
+    fields:[
+      f("facility","Facility","text"),
+      f("area","Area inspected","text"),
+      f("date","Date","date"),
+      f("inspector","Inspector","text"),
+      f("observations","Observations","rows",{cols:[
+        {key:"item",label:"Item",type:"text"},
+        {key:"obs",label:"Observation",type:"text"},
+        {key:"status",label:"Status",type:"select",options:["OK","Not OK","N/A"]},
+        {key:"action",label:"Action required",type:"text"}
+      ],defaultRows:[{}]}),
+      f("remarks","Overall remarks","textarea")
+    ]
+  },
+  "toolbox-talk":{
+    docTitle:"Toolbox Talk Sheet",
+    fields:[
+      f("topic","Topic","text"),
+      f("date","Date","date"),
+      f("time","Time","text"),
+      f("conductedBy","Conducted by","text"),
+      f("department","Department / area","text"),
+      f("keyPoints","Key points discussed","textarea"),
+      f("attendees","Attendees","rows",{cols:[
+        {key:"name",label:"Name",type:"text"},
+        {key:"emp",label:"Employee ID",type:"text"},
+        {key:"sign",label:"Signature",type:"text"}
+      ],defaultRows:[{},{},{}]})
+    ]
+  },
+  "capa":{
+    docTitle:"CAPA Tracker",
+    fields:[
+      f("facility","Facility","text"),
+      f("period","Period covered","text"),
+      f("rows","Corrective / preventive actions","rows",{cols:[
+        {key:"finding",label:"Finding / nonconformity",type:"text"},
+        {key:"rootcause",label:"Root cause",type:"text"},
+        {key:"action",label:"Corrective action",type:"text"},
+        {key:"owner",label:"Responsible",type:"text"},
+        {key:"due",label:"Target date",type:"text"},
+        {key:"status",label:"Status",type:"select",options:["Open","In progress","Closed"]}
+      ],defaultRows:[{}]})
+    ]
+  },
+  "incident-investigation":{
+    docTitle:"Incident Investigation Report",
+    signatures:true,
+    fields:[
+      f("dateTime","Incident date / time","text"),
+      f("location","Location","text"),
+      f("persons","Persons involved","text"),
+      f("description","Description of incident","textarea"),
+      f("severity","Injury type / severity","text"),
+      f("immediateCause","Immediate cause","textarea"),
+      f("rootCause","Root cause (5-Why)","textarea"),
+      f("actions","Corrective actions","textarea"),
+      f("investigator","Investigated by","text"),
+      f("reviewer","Reviewed by","text")
+    ]
+  },
+  "hazwaste-tracker":{
+    docTitle:"Hazardous Waste Log / Register",
+    fields:[
+      f("facility","Facility","text"),
+      f("rows","Waste entries","rows",{cols:[
+        {key:"date",label:"Date",type:"text"},
+        {key:"category",label:"Waste category (HW Rules schedule)",type:"text"},
+        {key:"qty",label:"Quantity (kg)",type:"text"},
+        {key:"storage",label:"Storage location",type:"text"},
+        {key:"disposal",label:"Disposal method",type:"text"},
+        {key:"vendor",label:"Authorised vendor",type:"text"},
+        {key:"manifest",label:"Manifest no.",type:"text"}
+      ],defaultRows:[{}]})
+    ]
+  },
+  "aspect-impact":{
+    docTitle:"Environmental Aspect–Impact Register",
+    fields:[
+      f("facility","Facility","text"),
+      f("rows","Aspects & impacts","rows",{cols:[
+        {key:"activity",label:"Activity",type:"text"},
+        {key:"aspect",label:"Aspect",type:"text"},
+        {key:"impact",label:"Impact",type:"text"},
+        {key:"significance",label:"Significance",type:"select",options:["Low","Medium","High"]},
+        {key:"control",label:"Control measure",type:"text"}
+      ],defaultRows:[{}]})
+    ]
+  },
+  "fire-alarm-log":{
+    docTitle:"Fire Alarm & Detector Test Log",
+    fields:[
+      f("facility","Facility","text"),
+      f("rows","Test entries","rows",{cols:[
+        {key:"date",label:"Date",type:"text"},
+        {key:"zone",label:"Zone / area",type:"text"},
+        {key:"device",label:"Device tested",type:"select",options:["Smoke detector","Heat detector","Manual call point","Hooter / sounder","Fire panel"]},
+        {key:"result",label:"Result",type:"select",options:["Pass","Fail"]},
+        {key:"testedBy",label:"Tested by",type:"text"}
+      ],defaultRows:[{}]})
+    ]
+  },
+  "near-miss":{
+    docTitle:"Near-Miss Report",
+    fields:[
+      f("reportDate","Report date","date"),
+      f("reporterName","Reported by","text"),
+      f("department","Department","text"),
+      f("location","Location","text"),
+      f("eventDateTime","Date / time of near-miss","text"),
+      f("description","Description of the near-miss","textarea"),
+      f("potentialConsequence","Potential consequence if unaddressed","textarea"),
+      f("immediateAction","Immediate action taken","textarea"),
+      f("rootCause","Root cause","textarea"),
+      f("correctiveAction","Corrective action proposed","textarea")
+    ]
+  },
+  "jsa":{
+    docTitle:"Job Safety Analysis (JSA)",
+    intro:"Pick a job type below to auto-fill typical steps, hazards and controls — then adjust to match the actual task.",
+    fields:[
+      f("jobTitle","Job / task title","text"),
+      f("department","Department / area","text"),
+      f("date","Date","date"),
+      f("rows","Job steps","rows",{cols:[
+        {key:"step",label:"Job step",type:"text"},
+        {key:"hazard",label:"Potential hazard",type:"text"},
+        {key:"controls",label:"Controls / safe practice",type:"text"}
+      ],defaultRows:[{}]})
+    ],
+    templates:[
+      {label:"Machine Operation",data:{jobTitle:"Machine Operation",rows:[
+        {step:"Pre-start inspection",hazard:"Contact with unguarded moving parts",controls:"Verify guards in place, check E-stop function before starting"},
+        {step:"Loading material into machine",hazard:"Crushing / entanglement",controls:"Use feed tool, keep hands clear of pinch points"},
+        {step:"Machine running / cutting",hazard:"Flying debris, noise",controls:"Wear face shield and ear protection, stand clear of cutting path"},
+        {step:"Removing finished part",hazard:"Sharp edges, hot surface",controls:"Use gloves, allow cooling time before handling"},
+        {step:"Cleaning / end of shift",hazard:"Accidental start-up during cleaning",controls:"Isolate power (LOTO) before cleaning"}
+      ]}},
+      {label:"Manual Material Handling",data:{jobTitle:"Manual Material Handling",rows:[
+        {step:"Assessing the load",hazard:"Overexertion from unknown weight",controls:"Check weight label, test-lift a corner before full lift"},
+        {step:"Lifting the load",hazard:"Back strain / musculoskeletal injury",controls:"Bend knees, keep back straight, use team lift for heavy items"},
+        {step:"Carrying the load",hazard:"Trip / collision with obstacles",controls:"Clear the path in advance, do not carry loads that block vision"},
+        {step:"Setting the load down",hazard:"Crushed fingers / toes",controls:"Set down using controlled bend-knee technique, use gloves and safety shoes"}
+      ]}},
+      {label:"Welding & Cutting",data:{jobTitle:"Welding & Cutting",rows:[
+        {step:"Setting up welding equipment",hazard:"Electric shock from damaged cables",controls:"Inspect cables and earthing before use"},
+        {step:"Striking the arc / cutting",hazard:"Arc flash, burns, fire",controls:"Use welding helmet and screens, keep extinguisher nearby, obtain hot work permit"},
+        {step:"Working in an enclosed area",hazard:"Fume inhalation",controls:"Ensure ventilation or fume extraction, use respiratory PPE if needed"},
+        {step:"Post-work",hazard:"Residual heat causing fire",controls:"Conduct a fire watch for 30 minutes after work"}
+      ]}},
+      {label:"Working at Height",data:{jobTitle:"Working at Height",rows:[
+        {step:"Accessing the work platform",hazard:"Fall from height",controls:"Use inspected scaffold/ladder, wear fall-arrest harness"},
+        {step:"Working at the elevated position",hazard:"Dropped tools / objects",controls:"Secure tools with lanyards, barricade area below"},
+        {step:"Moving along the structure",hazard:"Loss of balance",controls:"Maintain 3-point contact, clip harness to lifeline at all times"},
+        {step:"Descending",hazard:"Fall during descent",controls:"Face the ladder/scaffold, descend slowly, keep harness connected until on ground"}
+      ]}},
+      {label:"Confined Space Entry",data:{jobTitle:"Confined Space Entry",rows:[
+        {step:"Pre-entry testing",hazard:"Oxygen deficiency / toxic atmosphere",controls:"Test atmosphere with a calibrated gas detector before entry"},
+        {step:"Entry",hazard:"Engulfment / entrapment",controls:"Use harness and retrieval line, attendant stationed outside"},
+        {step:"Working inside",hazard:"Atmosphere change during work",controls:"Continuous gas monitoring, maintain communication with attendant"},
+        {step:"Exit / emergency",hazard:"Inability to self-rescue",controls:"Rescue plan and equipment ready, attendant trained in emergency response"}
+      ]}},
+      {label:"Electrical Maintenance",data:{jobTitle:"Electrical Maintenance",rows:[
+        {step:"Isolating the circuit",hazard:"Electric shock from live parts",controls:"Apply LOTO, verify zero energy with a tester before touching"},
+        {step:"Working on the equipment",hazard:"Arc flash / shock from adjacent live parts",controls:"Use insulated tools and PPE rated for the voltage"},
+        {step:"Testing after repair",hazard:"Unexpected energisation",controls:"Follow safe re-energisation procedure with an authorised person present"}
+      ]}},
+      {label:"Forklift Operation",data:{jobTitle:"Forklift Operation",rows:[
+        {step:"Pre-operation check",hazard:"Equipment failure during use",controls:"Complete daily checklist for brakes, tyres, forks, horn"},
+        {step:"Loading / unloading",hazard:"Load fall / tip-over",controls:"Do not exceed rated capacity, keep forks low while travelling"},
+        {step:"Travelling in plant",hazard:"Collision with pedestrians",controls:"Sound horn at corners, observe speed limits, use designated routes"}
+      ]}},
+      {label:"Chemical Handling",data:{jobTitle:"Chemical Handling",rows:[
+        {step:"Retrieving chemical from storage",hazard:"Skin/eye contact, spill",controls:"Wear chemical-resistant PPE, check SDS before handling"},
+        {step:"Transferring / dispensing",hazard:"Inhalation of vapours, spill",controls:"Work in a ventilated area with spill containment, use appropriate transfer equipment"},
+        {step:"Disposal of waste / containers",hazard:"Improper disposal causing contamination",controls:"Dispose per hazardous waste procedure, label containers correctly"}
+      ]}}
+    ]
+  },
+  "air-emission-log":{
+    docTitle:"Air Emission Monitoring Log",
+    fields:[
+      f("facility","Facility","text"),
+      f("rows","Monitoring entries","rows",{cols:[
+        {key:"date",label:"Date",type:"text"},
+        {key:"source",label:"Stack / source",type:"text"},
+        {key:"parameter",label:"Parameter",type:"text"},
+        {key:"result",label:"Result",type:"text"},
+        {key:"limit",label:"Permissible limit",type:"text"},
+        {key:"status",label:"Compliance",type:"select",options:["Within limit","Exceeds limit"]}
+      ],defaultRows:[{}]})
+    ]
+  },
+  "moc-form":{
+    docTitle:"Management of Change (MOC) Form",
+    fields:[
+      f("changeTitle","Title of change","text"),
+      f("requestedBy","Requested by","text"),
+      f("date","Date","date"),
+      f("reasonForChange","Reason for change","textarea"),
+      f("descriptionOfChange","Description of change","textarea"),
+      f("riskAssessed","Risk assessment done?","select",{options:["Yes","No"]}),
+      f("impactAreas","Areas / systems impacted","textarea"),
+      f("approvalRequiredFrom","Additional approvals required from","text")
+    ]
+  },
+  "accident-register":{
+    docTitle:"Accident / First-Aid Register",
+    fields:[
+      f("facility","Facility","text"),
+      f("rows","Entries","rows",{cols:[
+        {key:"date",label:"Date",type:"text"},
+        {key:"name",label:"Employee name",type:"text"},
+        {key:"dept",label:"Department",type:"text"},
+        {key:"injury",label:"Nature of injury",type:"text"},
+        {key:"firstAid",label:"First aid given",type:"text"},
+        {key:"hospital",label:"Referred to hospital",type:"select",options:["Yes","No"]},
+        {key:"daysLost",label:"Days lost",type:"text"}
+      ],defaultRows:[{}]})
+    ]
+  },
+  "safety-meeting-minutes":{
+    docTitle:"Safety Committee Meeting Minutes",
+    fields:[
+      f("meetingDate","Meeting date","date"),
+      f("chairedBy","Chaired by","text"),
+      f("attendees","Attendees","textarea"),
+      f("rows","Agenda & actions","rows",{cols:[
+        {key:"topic",label:"Topic discussed",type:"text"},
+        {key:"points",label:"Key points",type:"text"},
+        {key:"actionBy",label:"Action by",type:"text"},
+        {key:"dueDate",label:"Due date",type:"text"}
+      ],defaultRows:[{}]})
+    ]
+  }
+};
+
+/* ---------- category / tool index ---------- */
+const CATEGORIES = [
+  {id:"fire",name:"Fire Safety",icon:"🧯",accent:"var(--accent-fire)",tools:[
+    {id:"fire-ext-calc",name:"Fire Extinguisher Calculator"},
+    {id:"fire-drill",name:"Fire Drill Planner"},
+    {id:"emergency-contacts",name:"Emergency Contact Generator"},
+    {id:"fire-inspection",name:"Fire Inspection Checklist"},
+    {id:"evac-map",name:"Evacuation Map Maker"},
+    {id:"fire-hydrant",name:"Fire Hydrant Testing Checklist"},
+    {id:"fire-alarm-log",name:"Fire Alarm & Detector Test Log"},
+    {id:"fire-load-calc",name:"Fire Load Calculator"}
+  ]},
+  {id:"workplace",name:"Workplace Safety",icon:"⚠️",accent:"var(--accent-workplace)",tools:[
+    {id:"hira",name:"HIRA Generator"},
+    {id:"risk-calc",name:"Risk Assessment Calculator"},
+    {id:"ppe",name:"PPE Checklist"},
+    {id:"ptw",name:"PTW Generator"},
+    {id:"loto",name:"LOTO Checklist"},
+    {id:"height",name:"Working at Height Checklist"},
+    {id:"confined-space",name:"Confined Space Checklist"},
+    {id:"near-miss",name:"Near-Miss Report"},
+    {id:"machine-guarding",name:"Machine Guarding Checklist"},
+    {id:"electrical-safety",name:"Electrical Safety Checklist"},
+    {id:"jsa",name:"Job Safety Analysis (JSA)"}
+  ]},
+  {id:"environment",name:"Environment",icon:"🌱",accent:"var(--accent-environment)",tools:[
+    {id:"etp-calc",name:"ETP Dosing Calculator"},
+    {id:"water-calc",name:"Water Consumption Calculator"},
+    {id:"waste-calc",name:"Waste Generation Calculator"},
+    {id:"hazwaste-tracker",name:"Hazardous Waste Tracker"},
+    {id:"aspect-impact",name:"Environmental Aspect-Impact Generator"},
+    {id:"iso14001",name:"ISO 14001 Checklist"},
+    {id:"carbon-footprint-calc",name:"Carbon Footprint Estimator"},
+    {id:"rainwater-calc",name:"Rainwater Harvesting Calculator"},
+    {id:"air-emission-log",name:"Air Emission Monitoring Log"}
+  ]},
+  {id:"audit",name:"Audit",icon:"📋",accent:"var(--accent-audit)",tools:[
+    {id:"factory-ehs-audit",name:"Factory EHS Audit"},
+    {id:"iso14001",name:"ISO 14001 Checklist"},
+    {id:"iso45001",name:"ISO 45001 Checklist"},
+    {id:"legal-compliance",name:"Legal Compliance Checklist"},
+    {id:"capa",name:"CAPA Tracker"},
+    {id:"incident-investigation",name:"Incident Investigation"},
+    {id:"housekeeping-audit",name:"Housekeeping (5S) Audit"},
+    {id:"contractor-audit",name:"Contractor Safety Audit"},
+    {id:"moc-form",name:"Management of Change (MOC) Form"}
+  ]},
+  {id:"docs",name:"Document Generator",icon:"📄",accent:"var(--accent-docs)",tools:[
+    {id:"sop",name:"SOP Generator"},
+    {id:"hira",name:"HIRA PDF"},
+    {id:"risk-calc",name:"Risk Assessment PDF"},
+    {id:"training-cert",name:"Training Certificate"},
+    {id:"inspection-report",name:"Inspection Report"},
+    {id:"toolbox-talk",name:"Toolbox Talk Sheet"},
+    {id:"ptw",name:"Permit-to-Work PDF"},
+    {id:"jsa",name:"JSA PDF"},
+    {id:"near-miss",name:"Near-Miss Report PDF"},
+    {id:"accident-register",name:"Accident / First-Aid Register"},
+    {id:"safety-meeting-minutes",name:"Safety Committee Meeting Minutes"}
+  ]},
+  {id:"pdftools",name:"PDF Tools",icon:"🗂️",accent:"var(--accent-pdftools)",tools:[
+    {id:"pdf-merge",name:"Merge PDF"},
+    {id:"pdf-split",name:"Split PDF"},
+    {id:"pdf-compress",name:"Compress PDF"},
+    {id:"pdf-to-word",name:"PDF to Word"},
+    {id:"pdf-to-ppt",name:"PDF to PowerPoint"},
+    {id:"pdf-to-excel",name:"PDF to Excel"},
+    {id:"word-to-pdf",name:"Word to PDF"},
+    {id:"ppt-to-pdf",name:"PowerPoint to PDF"},
+    {id:"excel-to-pdf",name:"Excel to PDF"},
+    {id:"pdf-edit",name:"Edit PDF"},
+    {id:"pdf-to-jpg",name:"PDF to JPG"},
+    {id:"jpg-to-pdf",name:"JPG to PDF"},
+    {id:"pdf-sign",name:"Sign PDF"},
+    {id:"pdf-watermark",name:"Watermark"},
+    {id:"pdf-rotate",name:"Rotate PDF"},
+    {id:"html-to-pdf",name:"HTML to PDF"},
+    {id:"pdf-unlock",name:"Unlock PDF"},
+    {id:"pdf-protect",name:"Protect PDF"},
+    {id:"pdf-organize",name:"Organize PDF"},
+    {id:"pdf-to-pdfa",name:"PDF to PDF/A"},
+    {id:"pdf-repair",name:"Repair PDF"},
+    {id:"pdf-page-numbers",name:"Page numbers"},
+    {id:"scan-to-pdf",name:"Scan to PDF"},
+    {id:"pdf-ocr",name:"OCR PDF"}
+  ]}
+];
+/* Tools genuinely not achievable to a trustworthy standard fully client-side (no server) yet.
+   Rather than fake them, they're clearly labelled with why. Everything else in PDF Tools
+   runs entirely in the browser - files never leave the device. */
+const PDF_COMING_SOON = {
+  "pdf-to-word":"Accurate layout reconstruction (columns, tables, images in place) needs a full document-layout engine. A basic text-only export is planned as a stopgap.",
+  "pdf-to-ppt":"There's no reliable way to rebuild editable slide layouts from a PDF fully in-browser yet.",
+  "pdf-to-excel":"Real table detection from arbitrary PDFs needs a proper table-recognition engine, not just text extraction.",
+  "ppt-to-pdf":"There's no in-browser PowerPoint rendering engine available to convert slides accurately yet.",
+  "pdf-edit":"A full click-to-edit annotation/layout editor is on the roadmap.",
+  "pdf-unlock":"Removing password encryption needs a decryption library that isn't wired up yet.",
+  "pdf-protect":"Adding password encryption needs a crypto library that isn't wired up yet.",
+  "pdf-to-pdfa":"True PDF/A compliance requires embedding fonts, colour profiles and metadata to an ISO spec - more than a quick client-side pass can guarantee.",
+  "pdf-repair":"Deep structural repair of corrupted PDFs needs a more forgiving parser than we have wired up yet.",
+  "pdf-ocr":"In-browser OCR is on the roadmap - it needs a fairly large recognition model to run client-side.",
+};
+const TOOL_NAMES = {};
+CATEGORIES.forEach(c=>c.tools.forEach(t=>TOOL_NAMES[t.id]=t.name));
+function toolCategory(id){
+  for(const c of CATEGORIES) if(c.tools.some(t=>t.id===id)) return c;
+  return CATEGORIES[0];
+}
+const TOTAL_TOOL_COUNT = new Set(CATEGORIES.flatMap(c=>c.tools.map(t=>t.id))).size;
+
+/* ============================= ROUTER ============================= */
+let ROUTE = {view:"home"};
+function go(route){ROUTE=route;window.scrollTo(0,0);render();}
+
+function render(){
+  const app=document.getElementById("app");
+  if(ROUTE.view==="home") app.innerHTML = pageHome();
+  else if(ROUTE.view==="category") app.innerHTML = pageCategory(ROUTE.id);
+  else if(ROUTE.view==="tool") app.innerHTML = pageTool(ROUTE.id);
+  attachTopbar();
+  if(ROUTE.view==="tool") mountTool(ROUTE.id);
+  app.classList.remove("page-fade");
+  void app.offsetWidth;
+  app.classList.add("page-fade");
+}
+
+function topbarHTML(){
+  return `
+  <div class="topbar">
+    <div class="brand" id="go-home">
+      <div class="brand-mark">FS</div>
+      <div>
+        <div class="brand-name">FACTORY SAFETY TOOLKIT</div>
+        <div class="brand-sub">Free EHS tools for Indian factories</div>
+      </div>
+    </div>
+    <div class="menu-wrap" id="menu-wrap">
+      <button class="menu-btn" id="menu-btn" type="button" aria-haspopup="true" aria-label="Open categories menu">
+        <span class="menu-icon">☰</span> Categories
+      </button>
+      <div class="menu-dropdown" id="menu-dropdown">
+        ${CATEGORIES.map(c=>`<span data-cat="${c.id}">${c.icon} ${c.name}</span>`).join("")}
+      </div>
+    </div>
+  </div>
+  <div class="menu-backdrop" id="menu-backdrop"></div>`;
+}
+function attachTopbar(){
+  const goHome=document.getElementById("go-home");
+  if(goHome) goHome.onclick=()=>go({view:"home"});
+}
+
+/* ---------- home ---------- */
+function pageHome(){
+  return `
+  ${topbarHTML()}
+  <section class="hero">
+    <h1>Run a safer plant,<br>one tool at a time.</h1>
+    <p class="lead">Calculators, checklists, planners and document generators for fire, workplace and environmental safety — built for Indian factory compliance. No login, no cost.</p>
+    <div class="gauge-row">
+      <div class="gauge"><b>${TOTAL_TOOL_COUNT}</b><span>tools live</span></div>
+      <div class="gauge"><b>5</b><span>categories covered</span></div>
+      <div class="gauge"><b>₹0</b><span>cost to use</span></div>
+      <div class="gauge"><b>PDF</b><span>printable output</span></div>
+    </div>
+  </section>
+
+  <div class="section-label">Browse by category</div>
+  <div class="cat-grid">
+    ${CATEGORIES.map(catHTML).join("")}
+  </div>
+
+  <footer>
+    <span>Factory Safety Toolkit — built for plant EHS teams in India.</span>
+    <span>Reference tools only — verify against IS/NBC codes, the Factories Act and your local Fire &amp; Pollution Control authority before compliance use.</span>
+  </footer>
+  `;
+}
+function toolListItemHTML(t){
+  const soon = PDF_COMING_SOON[t.id];
+  return `<li data-tool="${t.id}"><span>${t.name}${soon?'<span class="badge-soon">Soon</span>':''}</span><span class="go">Open →</span></li>`;
+}
+function catHTML(c,i){
+  return `
+  <div class="cat-panel" style="--accent:${c.accent};animation-delay:${(i||0)*60}ms">
+    <div class="cat-head"><span class="cat-icon-badge">${c.icon}</span><span class="cat-title">${c.name}</span></div>
+    <div class="cat-count">${c.tools.length} tools</div>
+    <ul class="cat-tools" data-cat="${c.id}">
+      ${c.tools.map(toolListItemHTML).join("")}
+    </ul>
+  </div>`;
+}
+
+/* ---------- category page ---------- */
+function pageCategory(catId){
+  const c=CATEGORIES.find(x=>x.id===catId);
+  return `
+  ${topbarHTML()}
+  <div class="crumbs"><span class="link" id="crumb-home">Home</span><span>/</span><span>${c.name}</span></div>
+  <section class="hero" style="padding:32px 0 24px;">
+    <h1 style="font-size:40px;">${c.icon} ${c.name}</h1>
+  </section>
+  <div class="cat-grid" style="grid-template-columns:1fr;">
+    <div class="cat-panel" style="--accent:${c.accent}">
+      <ul class="cat-tools" data-cat="${c.id}">
+        ${c.tools.map(toolListItemHTML).join("")}
+      </ul>
+    </div>
+  </div>
+  `;
+}
+
+/* attach delegated clicks after any render for .cat-tools li */
+document.addEventListener("click",(e)=>{
+  const li=e.target.closest(".cat-tools li");
+  if(li){ go({view:"tool",id:li.dataset.tool}); }
+  const crumbHome=e.target.closest("#crumb-home");
+  if(crumbHome){ go({view:"home"}); }
+
+  const dropdown=document.getElementById("menu-dropdown");
+  const backdrop=document.getElementById("menu-backdrop");
+  const menuBtn=e.target.closest("#menu-btn");
+  if(menuBtn){
+    if(dropdown) dropdown.classList.toggle("open");
+    if(backdrop) backdrop.classList.toggle("open");
+    return;
+  }
+  const menuItem=e.target.closest("#menu-dropdown [data-cat]");
+  if(menuItem){
+    if(dropdown) dropdown.classList.remove("open");
+    if(backdrop) backdrop.classList.remove("open");
+    go({view:"category",id:menuItem.dataset.cat});
+    return;
+  }
+  if(dropdown && dropdown.classList.contains("open") && !e.target.closest("#menu-wrap")){
+    dropdown.classList.remove("open");
+    if(backdrop) backdrop.classList.remove("open");
+  }
+});
+
+/* ---------- tool page shell ---------- */
+function pageTool(toolId){
+  const cat=toolCategory(toolId);
+  const name=TOOL_NAMES[toolId]||toolId;
+  return `
+  ${topbarHTML()}
+  <div class="crumbs">
+    <span class="link" id="crumb-home">Home</span><span>/</span>
+    <span class="link" data-cat="${cat.id}">${cat.name}</span><span>/</span>
+    <span>${name}</span>
+  </div>
+  <div class="tool-header">
+    <div class="tool-tag" style="--accent:${cat.accent};color:${cat.accent}">${cat.icon} ${cat.name}</div>
+    <h2>${name}</h2>
+    <p id="tool-desc"></p>
+  </div>
+  <div id="tool-root"></div>
+  `;
+}
+
+/* ============================= TOOL MOUNTING ============================= */
+function mountTool(id){
+  document.querySelectorAll(".crumbs [data-cat]").forEach(el=>{
+    el.onclick=()=>go({view:"category",id:el.dataset.cat});
+  });
+  const root=document.getElementById("tool-root");
+  const descEl=document.getElementById("tool-desc");
+
+  if(id==="fire-ext-calc"){descEl.textContent="Estimate the number of portable fire extinguishers needed for a covered floor area."; mountFireExtCalc(root);}
+  else if(id==="risk-calc"){descEl.textContent="Score a single hazard on severity × likelihood against a standard 5×5 risk matrix."; mountRiskCalc(root);}
+  else if(id==="etp-calc"){descEl.textContent="Work out daily dosing chemical requirement for effluent treatment."; mountEtpCalc(root);}
+  else if(id==="water-calc"){descEl.textContent="Estimate daily and monthly water consumption for the workforce and process use."; mountWaterCalc(root);}
+  else if(id==="waste-calc"){descEl.textContent="Total up daily waste generation across categories and see per-capita output."; mountWasteCalc(root);}
+  else if(id==="fire-load-calc"){descEl.textContent="Estimate fire load density from combustible material in a floor area."; mountFireLoadCalc(root);}
+  else if(id==="carbon-footprint-calc"){descEl.textContent="Estimate monthly CO₂ emissions from grid electricity and diesel DG use."; mountCarbonCalc(root);}
+  else if(id==="rainwater-calc"){descEl.textContent="Estimate harvestable rainwater volume from roof/catchment area and rainfall."; mountRainwaterCalc(root);}
+  else if(id==="training-cert"){descEl.textContent="Generate a printable training completion certificate."; mountCertificate(root);}
+  else if(id==="evac-map"){descEl.textContent="Place exits, assembly points and hazards on a simple floor grid, then export."; mountMapMaker(root);}
+  else if(CHECKLISTS[id]){descEl.textContent="Work through the checklist, mark each item, and print or download your result."; mountChecklist(root,id);}
+  else if(GENERATORS[id]){descEl.textContent=GENERATORS[id].intro||"Fill in the details below — the document builds itself on the right."; mountGenerator(root,id);}
+  else if(PDF_COMING_SOON[id]){descEl.textContent="This one's on the roadmap — here's exactly why, and what already works instead."; mountComingSoon(root,id);}
+  else if(PDF_TOOL_HANDLERS[id]){descEl.textContent=PDF_TOOL_HANDLERS[id].desc; PDF_TOOL_HANDLERS[id].mount(root);}
+  else { root.innerHTML = `<div class="card"><p>Tool not found.</p></div>`; }
+}
+
+/* ---------- CHECKLIST ---------- */
+function mountChecklist(root,id){
+  const items=CHECKLISTS[id];
+  const state=items.map(()=>"pending"); // pending | ok | notok | na
+  const meta=newDocMeta();
+  root.innerHTML=`
+  <div class="workspace two-col">
+    <div class="card">
+      ${docControlHTML(meta)}
+      <h3>Checklist (${items.length} items)</h3>
+      <div id="cl-items"></div>
+      <div class="score-bar"><div class="score-fill" id="cl-fill" style="width:0%"></div></div>
+      <div class="score-label" id="cl-score">0 of ${items.length} marked OK</div>
+      <div class="btn-row no-print">
+        <button class="btn" id="cl-print">Print / Save as PDF</button>
+        <button class="btn secondary" id="cl-download">Download as text</button>
+        <button class="btn secondary" id="cl-reset">Reset</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Preview</h3>
+      <div id="print-area"><div id="cl-doc" class="doc-wrap"></div></div>
+    </div>
+  </div>`;
+  wireDocControl(root, meta, refresh);
+  const itemsEl=document.getElementById("cl-items");
+  itemsEl.innerHTML = items.map((txt,i)=>`
+    <div class="checklist-item">
+      <div class="ci-text">${esc(txt)}</div>
+      <select class="status" data-i="${i}">
+        <option value="pending">Pending</option>
+        <option value="ok">OK</option>
+        <option value="notok">Not OK</option>
+        <option value="na">N/A</option>
+      </select>
+    </div>`).join("");
+  itemsEl.querySelectorAll("select").forEach(sel=>{
+    sel.onchange=()=>{state[sel.dataset.i]=sel.value; refresh();};
+  });
+  function refresh(){
+    const applicable = state.filter(s=>s!=="na").length || 1;
+    const ok = state.filter(s=>s==="ok").length;
+    const pct = Math.round((ok/applicable)*100);
+    document.getElementById("cl-fill").style.width=pct+"%";
+    document.getElementById("cl-fill").style.background = pct>=80?"var(--green)":pct>=50?"var(--yellow)":"var(--red)";
+    document.getElementById("cl-score").textContent = `${ok} of ${applicable} applicable items marked OK — ${pct}% compliant`;
+    document.getElementById("cl-doc").innerHTML = docHeaderHTML(TOOL_NAMES[id], meta) + `
+      <div class="doc-block"><div class="lbl">COMPLIANCE SCORE</div><div class="txt">${pct}% (${ok} of ${applicable} applicable items OK)</div></div>
+      <div class="table-scroll"><table class="doc-table"><thead><tr><th>#</th><th>Item</th><th>Status</th></tr></thead><tbody>
+      ${items.map((t,i)=>`<tr><td>${i+1}</td><td>${esc(t)}</td><td>${state[i]==="pending"?"—":state[i].toUpperCase()}</td></tr>`).join("")}
+      </tbody></table></div>` + docSignatureHTML(meta);
+  }
+  refresh();
+  document.getElementById("cl-print").onclick=()=>window.print();
+  document.getElementById("cl-reset").onclick=()=>{state.fill("pending"); itemsEl.querySelectorAll("select").forEach(s=>s.value="pending"); refresh();};
+  document.getElementById("cl-download").onclick=()=>{
+    let out=docMetaText(meta)+`${TOOL_NAMES[id]}\nGenerated ${todayStr()}\n\n`;
+    items.forEach((t,i)=>{out+=`[${state[i]==="pending"?" ":state[i].toUpperCase()}] ${t}\n`;});
+    out+=sigMetaText(meta);
+    download(id+".txt",out);
+  };
+}
+
+/* ---------- GENERATOR (data-driven form -> doc) ---------- */
+function mountGenerator(root,id){
+  const cfg=GENERATORS[id];
+  const data={};
+  cfg.fields.forEach(fld=>{
+    if(fld.type==="rows"){ data[fld.key]=(fld.defaultRows||[{}]).map(r=>({...r})); }
+    else data[fld.key]="";
+  });
+  const meta=newDocMeta();
+  root.innerHTML=`
+  <div class="workspace two-col">
+    <div class="card">
+      ${docControlHTML(meta)}
+      <h3>Details</h3>
+      <div id="gen-form"></div>
+      <div class="btn-row no-print">
+        <button class="btn" id="gen-print">Print / Save as PDF</button>
+        <button class="btn secondary" id="gen-download">Download as text</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Preview</h3>
+      <div id="print-area"><div id="gen-doc" class="doc-wrap"></div></div>
+    </div>
+  </div>`;
+  wireDocControl(root, meta, refresh);
+  const formEl=document.getElementById("gen-form");
+
+  function templatePickerHTML(){
+    if(!cfg.templates) return "";
+    return `
+    <div class="field" style="background:var(--panel-2);border:1px solid var(--line);border-radius:2px;padding:12px 14px;margin-bottom:16px;">
+      <label style="color:var(--text);font-weight:600;margin-bottom:8px;">⚡ Quick-start: pick your process</label>
+      <select id="gen-template-pick">
+        <option value="">— Start blank, I'll fill everything myself —</option>
+        ${cfg.templates.map((t,i)=>`<option value="${i}">${esc(t.label)}</option>`).join("")}
+      </select>
+      <div class="hint" style="margin-top:6px;">Auto-fills most of the document below — review and edit anything specific to your site.</div>
+    </div>`;
+  }
+
+  function fieldHTML(fld){
+    if(fld.type==="text") return `<div class="field"><label>${fld.label}</label><input type="text" data-k="${fld.key}"></div>`;
+    if(fld.type==="date") return `<div class="field"><label>${fld.label}</label><input type="date" data-k="${fld.key}"></div>`;
+    if(fld.type==="number") return `<div class="field"><label>${fld.label}</label><input type="number" data-k="${fld.key}"></div>`;
+    if(fld.type==="textarea") return `<div class="field"><label>${fld.label}</label><textarea data-k="${fld.key}"></textarea></div>`;
+    if(fld.type==="select") return `<div class="field"><label>${fld.label}</label><select data-k="${fld.key}"><option value="">Select…</option>${fld.options.map(o=>`<option value="${esc(o)}">${esc(o)}</option>`).join("")}</select></div>`;
+    if(fld.type==="rows") return `
+      <div class="field">
+        <label>${fld.label}</label>
+        <div class="table-scroll"><table class="rows-table" data-rows="${fld.key}">
+          <thead><tr>${fld.cols.map(c=>`<th>${c.label}</th>`).join("")}<th></th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+        <button type="button" class="btn secondary small" data-addrow="${fld.key}">+ Add row</button>
+      </div>`;
+    return "";
+  }
+  formEl.innerHTML = templatePickerHTML() + cfg.fields.map(fieldHTML).join("");
+
+  function renderRows(fld){
+    const tbody=formEl.querySelector(`table[data-rows="${fld.key}"] tbody`);
+    tbody.innerHTML = data[fld.key].map((row,ri)=>`
+      <tr>
+        ${fld.cols.map(c=>{
+          if(c.type==="select"){
+            return `<td><select data-row="${fld.key}" data-ri="${ri}" data-ck="${c.key}">
+              <option value="">–</option>${c.options.map(o=>`<option value="${esc(o)}" ${row[c.key]===o?"selected":""}>${esc(o)}</option>`).join("")}
+            </select></td>`;
+          }
+          return `<td><input type="text" data-row="${fld.key}" data-ri="${ri}" data-ck="${c.key}" value="${esc(row[c.key]||"")}"></td>`;
+        }).join("")}
+        <td><button type="button" class="rm-row" data-rmrow="${fld.key}" data-ri="${ri}">✕</button></td>
+      </tr>`).join("");
+    tbody.querySelectorAll("input,select").forEach(inp=>{
+      inp.oninput=()=>{ data[fld.key][inp.dataset.ri][inp.dataset.ck]=inp.value; refresh(); };
+    });
+    tbody.querySelectorAll("[data-rmrow]").forEach(btn=>{
+      btn.onclick=()=>{ data[fld.key].splice(btn.dataset.ri,1); renderRows(fld); refresh(); };
+    });
+  }
+  cfg.fields.filter(fl=>fl.type==="rows").forEach(renderRows);
+  formEl.querySelectorAll("[data-addrow]").forEach(btn=>{
+    btn.onclick=()=>{
+      const fld=cfg.fields.find(fl=>fl.key===btn.dataset.addrow);
+      data[fld.key].push({});
+      renderRows(fld);
+      refresh();
+    };
+  });
+  formEl.querySelectorAll("input[data-k],textarea[data-k],select[data-k]").forEach(inp=>{
+    inp.oninput=()=>{ data[inp.dataset.k]=inp.value; refresh(); };
+    inp.onchange=()=>{ data[inp.dataset.k]=inp.value; refresh(); };
+  });
+
+  function applyTemplate(idx){
+    if(idx==="" || !cfg.templates) return;
+    const tpl=cfg.templates[Number(idx)];
+    if(!tpl) return;
+    Object.keys(tpl.data).forEach(k=>{
+      const fld=cfg.fields.find(fl=>fl.key===k);
+      if(!fld) return;
+      if(fld.type==="rows"){
+        data[k] = tpl.data[k].map(r=>({...r}));
+        renderRows(fld);
+      } else {
+        data[k]=tpl.data[k];
+        const inp=formEl.querySelector(`[data-k="${k}"]`);
+        if(inp) inp.value=tpl.data[k];
+      }
+    });
+    refresh();
+  }
+  const templatePick=document.getElementById("gen-template-pick");
+  if(templatePick) templatePick.onchange=(e)=>applyTemplate(e.target.value);
+
+  function buildDocHTML(){
+    if(cfg.postProcess) cfg.postProcess(data);
+    let html=docHeaderHTML(cfg.docTitle, meta);
+    cfg.fields.forEach(fld=>{
+      if(fld.type==="rows"){
+        const rows=data[fld.key];
+        const hasAny = rows.some(r=>Object.values(r).some(v=>v));
+        html+=`<div class="doc-block"><div class="lbl">${esc(fld.label).toUpperCase()}</div>`;
+        if(!hasAny){ html+=`<div class="txt" style="color:var(--ink-dim)">— none entered —</div></div>`; return; }
+        html+=`<div class="table-scroll"><table class="doc-table"><thead><tr>${fld.cols.map(c=>`<th>${esc(c.label)}</th>`).join("")}${fld.key==="rows"&&data.rows&&data.rows[0]&&"score" in (data.rows[0]||{})?"<th>Risk score</th><th>Level</th>":""}</tr></thead><tbody>`;
+        rows.forEach(r=>{
+          html+=`<tr>${fld.cols.map(c=>`<td>${esc(r[c.key]||"")}</td>`).join("")}${("score" in r)?`<td>${esc(r.score)}</td><td>${esc(r.level)}</td>`:""}</tr>`;
+        });
+        html+=`</tbody></table></div></div>`;
+      } else {
+        const v=data[fld.key];
+        if(fld.type==="textarea"){
+          html+=`<div class="doc-block"><div class="lbl">${esc(fld.label).toUpperCase()}</div><div class="txt">${v?esc(v):"—"}</div></div>`;
+        } else {
+          html+=`<div class="doc-field"><b>${esc(fld.label)}:</b> <span class="val">${v?esc(v):"—"}</span></div>`;
+        }
+      }
+    });
+    html+=docSignatureHTML(meta);
+    return html;
+  }
+  function toText(){
+    if(cfg.postProcess) cfg.postProcess(data);
+    let out=docMetaText(meta)+`${cfg.docTitle}\nGenerated ${todayStr()}\n\n`;
+    cfg.fields.forEach(fld=>{
+      if(fld.type==="rows"){
+        out+=`\n${fld.label}:\n`;
+        data[fld.key].forEach((r,i)=>{
+          out+=`  ${i+1}. `+fld.cols.map(c=>`${c.label}: ${r[c.key]||"-"}`).join(" | ")+(("score" in r)?` | Score: ${r.score} (${r.level})`:"")+"\n";
+        });
+      } else {
+        out+=`${fld.label}: ${data[fld.key]||"-"}\n`;
+      }
+    });
+    out+=sigMetaText(meta);
+    return out;
+  }
+  function refresh(){ document.getElementById("gen-doc").innerHTML = buildDocHTML(); }
+  refresh();
+  document.getElementById("gen-print").onclick=()=>window.print();
+  document.getElementById("gen-download").onclick=()=>download(id+".txt",toText());
+}
+
+/* ---------- shared shell for calculator-style tools: doc control + printable paper result ---------- */
+function mountCalcShell(root, id, title, inputsHTML){
+  const meta=newDocMeta();
+  let getBody=()=>`<div class="doc-empty">Enter values and press Calculate.</div>`;
+  root.innerHTML=`
+  <div class="workspace two-col">
+    <div class="card">
+      <h3>Inputs</h3>
+      ${inputsHTML}
+    </div>
+    <div class="card">
+      <h3>Preview</h3>
+      <div id="print-area"><div id="${id}-doc" class="doc-wrap"></div></div>
+      <div class="btn-row no-print"><button class="btn" id="${id}-print">Print / Save as PDF</button></div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:16px;">
+    ${docControlHTML(meta)}
+  </div>`;
+  function refresh(){
+    document.getElementById(id+"-doc").innerHTML = docHeaderHTML(title, meta) + getBody() + docSignatureHTML(meta);
+  }
+  wireDocControl(root, meta, refresh);
+  document.getElementById(id+"-print").onclick=()=>window.print();
+  refresh();
+  return { setBody(fn){ getBody=fn; refresh(); } };
+}
+
+/* ---------- FIRE EXTINGUISHER CALCULATOR ---------- */
+function mountFireExtCalc(root){
+  const inputsHTML=`
+    <div class="field"><label>Total floor area to protect (sq. m)</label><input type="number" id="fe-area" placeholder="e.g. 2000"></div>
+    <div class="field"><label>Hazard classification</label>
+      <select id="fe-class">
+        <option value="500">Low hazard (offices, non-combustible storage)</option>
+        <option value="300" selected>Ordinary hazard (general manufacturing)</option>
+        <option value="150">High hazard (flammable liquids / chemicals)</option>
+      </select>
+    </div>
+    <div class="field"><label>Number of floors</label><input type="number" id="fe-floors" value="1"></div>
+    <div class="btn-row"><button class="btn" id="fe-calc">Calculate</button></div>`;
+  const shell=mountCalcShell(root,"fe","Fire Extinguisher Requirement Calculation",inputsHTML);
+  document.getElementById("fe-calc").onclick=()=>{
+    const area=Number(document.getElementById("fe-area").value||0);
+    const coverage=Number(document.getElementById("fe-class").value);
+    const floors=Math.max(1,Number(document.getElementById("fe-floors").value||1));
+    if(!area){ shell.setBody(()=>`<div class="doc-empty">Enter a valid floor area.</div>`); return; }
+    const perFloorArea=area/floors;
+    let perFloor=Math.ceil(perFloorArea/coverage);
+    perFloor=Math.max(perFloor,2);
+    const total=perFloor*floors;
+    const travel = coverage===150?"10 m":"15 m";
+    const type = coverage===150? "CO₂ or DCP + foam (for flammable liquid / electrical risk)" : coverage===300? "ABC dry chemical powder (general purpose)" : "Water / ABC dry powder";
+    shell.setBody(()=>`
+      <div class="doc-field"><b>Total floor area:</b> <span class="val">${area} sq.m across ${floors} floor(s)</span></div>
+      <div class="doc-field"><b>Extinguishers required per floor:</b> <span class="val">${perFloor}</span></div>
+      <div class="doc-field"><b>Total across ${floors} floor(s):</b> <span class="val">${total}</span></div>
+      <div class="doc-field"><b>Max recommended travel distance:</b> <span class="val">${travel}</span></div>
+      <div class="doc-field"><b>Suggested type:</b> <span class="val">${type}</span></div>
+      <div class="hint" style="margin-top:14px;">Estimate based on general industry coverage norms (approx. ${coverage} sq.m per unit) referenced from NBC 2016 / IS 2190 practice. Confirm the final count and placement with your fire safety consultant and local Fire NOC authority.</div>`);
+  };
+}
+
+/* ---------- RISK ASSESSMENT CALCULATOR ---------- */
+function mountRiskCalc(root){
+  const inputsHTML=`
+    <div class="field"><label>Severity</label><select id="rc-sev">${SEVERITY.map(s=>`<option value="${s.v}">${s.label}</option>`).join("")}</select></div>
+    <div class="field"><label>Likelihood</label><select id="rc-lik">${LIKELIHOOD.map(l=>`<option value="${l.v}">${l.label}</option>`).join("")}</select></div>`;
+  const shell=mountCalcShell(root,"rc","Risk Assessment Calculation",inputsHTML);
+  function refresh(){
+    const s=Number(document.getElementById("rc-sev").value);
+    const l=Number(document.getElementById("rc-lik").value);
+    const score=s*l;
+    const band=riskBand(score);
+    const action = band.label==="Low"?"Acceptable — monitor via routine inspection.":
+                   band.label==="Medium"?"Manage with existing controls; review periodically.":
+                   band.label==="High"?"Additional controls required before work proceeds.":
+                   "Stop the activity — immediate action required to reduce risk.";
+    shell.setBody(()=>`
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:48px;color:${band.text};font-weight:700;">${score}</div>
+      <div class="risk-chip" style="background:${band.bg};color:${band.text};margin-bottom:14px;">${band.label} risk</div>
+      <div class="doc-field"><b>Recommended action:</b> <span class="val">${action}</span></div>
+      <div class="hint" style="margin-top:10px;">Risk = Severity × Likelihood on a 1–25 scale. Bands: Low 1–4, Medium 5–9, High 10–15, Very High 16–25.</div>`);
+  }
+  document.getElementById("rc-sev").onchange=refresh;
+  document.getElementById("rc-lik").onchange=refresh;
+  refresh();
+}
+
+/* ---------- ETP DOSING CALCULATOR ---------- */
+function mountEtpCalc(root){
+  const inputsHTML=`
+    <div class="field"><label>Effluent flow rate (m³/day, i.e. KLD)</label><input type="number" id="etp-flow" placeholder="e.g. 100"></div>
+    <div class="field"><label>Desired dose concentration (mg/L)</label><input type="number" id="etp-dose" placeholder="e.g. 20"></div>
+    <div class="field"><label>Chemical / reagent strength (% w/v)</label><input type="number" id="etp-strength" placeholder="e.g. 10"></div>
+    <div class="btn-row"><button class="btn" id="etp-calc">Calculate</button></div>`;
+  const shell=mountCalcShell(root,"etp","ETP Dosing Calculation",inputsHTML);
+  document.getElementById("etp-calc").onclick=()=>{
+    const flow=Number(document.getElementById("etp-flow").value||0);
+    const dose=Number(document.getElementById("etp-dose").value||0);
+    const strength=Number(document.getElementById("etp-strength").value||0);
+    if(!flow||!dose||!strength){ shell.setBody(()=>`<div class="doc-empty">Fill in all three fields.</div>`); return; }
+    const doseKgDay = (flow*dose)/1000;
+    const solutionLDay = (doseKgDay*100)/strength;
+    shell.setBody(()=>`
+      <div class="doc-field"><b>Effluent flow rate:</b> <span class="val">${flow} m³/day</span></div>
+      <div class="doc-field"><b>Pure chemical required:</b> <span class="val">${doseKgDay.toFixed(2)} kg/day</span></div>
+      <div class="doc-field"><b>Dosing solution volume (at ${strength}% strength):</b> <span class="val">${solutionLDay.toFixed(1)} L/day</span></div>
+      <div class="doc-field"><b>Approx. dosing rate:</b> <span class="val">${(solutionLDay/24).toFixed(2)} L/hr (continuous dosing)</span></div>
+      <div class="hint" style="margin-top:14px;">Dose (kg/day) = Flow (m³/day) × Dose (mg/L) ÷ 1000. Solution volume assumes a w/v strength reagent. Validate against jar-test results before setting the dosing pump.</div>`);
+  };
+}
+
+/* ---------- WATER CONSUMPTION CALCULATOR ---------- */
+function mountWaterCalc(root){
+  const inputsHTML=`
+    <div class="field"><label>Number of employees</label><input type="number" id="wc-emp" placeholder="e.g. 300"></div>
+    <div class="field"><label>Per-capita consumption (L/day)</label><input type="number" id="wc-cap" value="45"></div>
+    <div class="field"><label>Process water use (KL/day, optional)</label><input type="number" id="wc-process" placeholder="e.g. 20"></div>
+    <div class="field"><label>Working days per month</label><input type="number" id="wc-days" value="26"></div>
+    <div class="btn-row"><button class="btn" id="wc-calc">Calculate</button></div>`;
+  const shell=mountCalcShell(root,"wc","Water Consumption Calculation",inputsHTML);
+  document.getElementById("wc-calc").onclick=()=>{
+    const emp=Number(document.getElementById("wc-emp").value||0);
+    const cap=Number(document.getElementById("wc-cap").value||45);
+    const process=Number(document.getElementById("wc-process").value||0);
+    const days=Number(document.getElementById("wc-days").value||26);
+    if(!emp){ shell.setBody(()=>`<div class="doc-empty">Enter the number of employees.</div>`); return; }
+    const domesticLDay = emp*cap;
+    const totalLDay = domesticLDay + process*1000;
+    const totalKLDay = totalLDay/1000;
+    const monthlyKL = totalKLDay*days;
+    shell.setBody(()=>`
+      <div class="doc-field"><b>Employees:</b> <span class="val">${emp}</span></div>
+      <div class="doc-field"><b>Domestic (drinking + washing) demand:</b> <span class="val">${domesticLDay.toLocaleString('en-IN')} L/day</span></div>
+      <div class="doc-field"><b>Total daily consumption:</b> <span class="val">${totalKLDay.toFixed(2)} KL/day</span></div>
+      <div class="doc-field"><b>Monthly consumption (${days} working days):</b> <span class="val">${monthlyKL.toFixed(1)} KL/month</span></div>
+      <div class="hint" style="margin-top:14px;">Default per-capita figure of 45 L/day reflects common Factories Act drinking + washing provision; adjust for your canteen, cooling or process needs.</div>`);
+  };
+}
+
+/* ---------- WASTE GENERATION CALCULATOR ---------- */
+function mountWasteCalc(root){
+  const rows=[{name:"General / non-hazardous",kg:""},{name:"Recyclable",kg:""},{name:"Hazardous",kg:""}];
+  const inputsHTML=`
+    <div id="wg-rows"></div>
+    <button class="btn secondary small" id="wg-add">+ Add category</button>
+    <div class="field" style="margin-top:14px;"><label>Number of employees (for per-capita figure, optional)</label><input type="number" id="wg-emp"></div>`;
+  const shell=mountCalcShell(root,"wg","Waste Generation Calculation",inputsHTML);
+  const rowsEl=document.getElementById("wg-rows");
+  function renderRows(){
+    rowsEl.innerHTML = rows.map((r,i)=>`
+      <div class="field-row" style="margin-bottom:8px;">
+        <input type="text" data-wr="${i}" data-wk="name" value="${esc(r.name)}" placeholder="Category">
+        <input type="number" data-wr="${i}" data-wk="kg" value="${esc(r.kg)}" placeholder="kg/day">
+      </div>`).join("");
+    rowsEl.querySelectorAll("input").forEach(inp=>{
+      inp.oninput=()=>{ rows[inp.dataset.wr][inp.dataset.wk]=inp.value; refresh(); };
+    });
+  }
+  document.getElementById("wg-add").onclick=()=>{ rows.push({name:"",kg:""}); renderRows(); refresh(); };
+  document.getElementById("wg-emp").oninput=refresh;
+  function refresh(){
+    const total=rows.reduce((s,r)=>s+(Number(r.kg)||0),0);
+    const emp=Number(document.getElementById("wg-emp").value||0);
+    shell.setBody(()=>`
+      <table class="doc-table" style="margin-bottom:10px;">
+        <thead><tr><th>Category</th><th>kg/day</th></tr></thead>
+        <tbody>${rows.map(r=>`<tr><td>${esc(r.name||"—")}</td><td>${r.kg||0}</td></tr>`).join("")}</tbody>
+      </table>
+      <div class="doc-field"><b>Total waste generated:</b> <span class="val">${total.toFixed(1)} kg/day (${(total*26/1000).toFixed(2)} tonnes/month)</span></div>
+      ${emp?`<div class="doc-field"><b>Per-capita generation:</b> <span class="val">${(total/emp).toFixed(3)} kg/employee/day</span></div>`:""}`);
+  }
+  renderRows(); refresh();
+}
+
+/* ---------- FIRE LOAD CALCULATOR ---------- */
+function mountFireLoadCalc(root){
+  const inputsHTML=`
+    <div class="field"><label>Total combustible material weight (kg)</label><input type="number" id="fl-weight" placeholder="e.g. 5000"></div>
+    <div class="field"><label>Average calorific value (MJ/kg)</label><input type="number" id="fl-cv" value="18" placeholder="e.g. 18 for mixed paper/wood/plastic"></div>
+    <div class="field"><label>Floor area (sq. m)</label><input type="number" id="fl-area" placeholder="e.g. 500"></div>
+    <div class="btn-row"><button class="btn" id="fl-calc">Calculate</button></div>`;
+  const shell=mountCalcShell(root,"fl","Fire Load Calculation",inputsHTML);
+  document.getElementById("fl-calc").onclick=()=>{
+    const weight=Number(document.getElementById("fl-weight").value||0);
+    const cv=Number(document.getElementById("fl-cv").value||0);
+    const area=Number(document.getElementById("fl-area").value||0);
+    if(!weight||!cv||!area){ shell.setBody(()=>`<div class="doc-empty">Fill in all three fields.</div>`); return; }
+    const density=(weight*cv)/area;
+    const cls = density<400?"Low":density<1200?"Moderate":"High";
+    shell.setBody(()=>`
+      <div class="doc-field"><b>Fire load density:</b> <span class="val">${density.toFixed(1)} MJ/m²</span></div>
+      <div class="doc-field"><b>Indicative classification:</b> <span class="val">${cls} fire load</span></div>
+      <div class="hint" style="margin-top:14px;">Fire Load Density = (Combustible weight × Calorific value) ÷ Floor area. Bands used here (Low &lt;400, Moderate 400–1200, High &gt;1200 MJ/m²) are indicative only — get a qualified fire engineer to confirm classification and compartment design.</div>`);
+  };
+}
+
+/* ---------- CARBON FOOTPRINT ESTIMATOR ---------- */
+function mountCarbonCalc(root){
+  const inputsHTML=`
+    <div class="field"><label>Grid electricity consumption (kWh/month)</label><input type="number" id="cf-kwh" placeholder="e.g. 40000"></div>
+    <div class="field"><label>Grid emission factor (kg CO₂/kWh)</label><input type="number" id="cf-gridfactor" value="0.82"></div>
+    <div class="field"><label>Diesel consumed by DG sets (L/month)</label><input type="number" id="cf-diesel" placeholder="e.g. 500"></div>
+    <div class="field"><label>Diesel emission factor (kg CO₂/L)</label><input type="number" id="cf-dieselfactor" value="2.68"></div>
+    <div class="btn-row"><button class="btn" id="cf-calc">Calculate</button></div>`;
+  const shell=mountCalcShell(root,"cf","Carbon Footprint Estimate (Scope 1 &amp; 2)",inputsHTML);
+  document.getElementById("cf-calc").onclick=()=>{
+    const kwh=Number(document.getElementById("cf-kwh").value||0);
+    const gf=Number(document.getElementById("cf-gridfactor").value||0.82);
+    const diesel=Number(document.getElementById("cf-diesel").value||0);
+    const df=Number(document.getElementById("cf-dieselfactor").value||2.68);
+    if(!kwh&&!diesel){ shell.setBody(()=>`<div class="doc-empty">Enter electricity and/or diesel consumption.</div>`); return; }
+    const elecT=(kwh*gf)/1000;
+    const dieselT=(diesel*df)/1000;
+    const totalT=elecT+dieselT;
+    shell.setBody(()=>`
+      <div class="doc-field"><b>Electricity emissions (Scope 2):</b> <span class="val">${elecT.toFixed(2)} tCO₂/month</span></div>
+      <div class="doc-field"><b>Diesel / DG emissions (Scope 1):</b> <span class="val">${dieselT.toFixed(2)} tCO₂/month</span></div>
+      <div class="doc-field"><b>Total monthly emissions:</b> <span class="val">${totalT.toFixed(2)} tCO₂/month</span></div>
+      <div class="doc-field"><b>Annualised estimate:</b> <span class="val">${(totalT*12).toFixed(1)} tCO₂/year</span></div>
+      <div class="hint" style="margin-top:14px;">Default grid factor (0.82 kg CO₂/kWh) reflects a typical India CEA grid average; use your DISCOM/CEA figure for the applicable year for reporting purposes. This covers Scope 1 (diesel) and Scope 2 (purchased electricity) only.</div>`);
+  };
+}
+
+/* ---------- RAINWATER HARVESTING CALCULATOR ---------- */
+function mountRainwaterCalc(root){
+  const inputsHTML=`
+    <div class="field"><label>Roof / catchment area (sq. m)</label><input type="number" id="rw-area" placeholder="e.g. 3000"></div>
+    <div class="field"><label>Average annual rainfall (mm)</label><input type="number" id="rw-rain" placeholder="e.g. 1100"></div>
+    <div class="field"><label>Runoff coefficient</label>
+      <select id="rw-coef">
+        <option value="0.85">RCC / concrete roof (0.85)</option>
+        <option value="0.8" selected>Metal sheet roof (0.8)</option>
+        <option value="0.6">Paved open ground (0.6)</option>
+        <option value="0.3">Lawn / unpaved ground (0.3)</option>
+      </select>
+    </div>
+    <div class="btn-row"><button class="btn" id="rw-calc">Calculate</button></div>`;
+  const shell=mountCalcShell(root,"rw","Rainwater Harvesting Potential",inputsHTML);
+  document.getElementById("rw-calc").onclick=()=>{
+    const area=Number(document.getElementById("rw-area").value||0);
+    const rain=Number(document.getElementById("rw-rain").value||0);
+    const coef=Number(document.getElementById("rw-coef").value);
+    if(!area||!rain){ shell.setBody(()=>`<div class="doc-empty">Enter catchment area and rainfall.</div>`); return; }
+    const litres=area*rain*coef;
+    const kl=litres/1000;
+    shell.setBody(()=>`
+      <div class="doc-field"><b>Catchment area:</b> <span class="val">${area} sq.m</span></div>
+      <div class="doc-field"><b>Estimated harvestable volume:</b> <span class="val">${kl.toLocaleString('en-IN',{maximumFractionDigits:0})} KL/year</span></div>
+      <div class="doc-field"><b>Approx. monthly average (uneven in practice):</b> <span class="val">${(kl/12).toFixed(1)} KL/month</span></div>
+      <div class="hint" style="margin-top:14px;">Volume (litres) = Catchment area (m²) × Annual rainfall (mm) × Runoff coefficient. Actual yield depends on rainfall distribution, first-flush losses and storage/recharge capacity — use this as a planning estimate only.</div>`);
+  };
+}
+
+/* ---------- TRAINING CERTIFICATE ---------- */
+function mountCertificate(root){
+  const meta=newDocMeta();
+  root.innerHTML=`
+  <div class="workspace two-col">
+    <div class="card">
+      ${docControlHTML(meta)}
+      <h3>Details</h3>
+      <div class="field"><label>Employee name</label><input type="text" id="tc-name"></div>
+      <div class="field"><label>Training title</label><input type="text" id="tc-title"></div>
+      <div class="field-row">
+        <div class="field"><label>Date</label><input type="date" id="tc-date"></div>
+        <div class="field"><label>Duration</label><input type="text" id="tc-duration" placeholder="e.g. 4 hours"></div>
+      </div>
+      <div class="field"><label>Trainer name</label><input type="text" id="tc-trainer"></div>
+      <div class="field"><label>Certificate number</label><input type="text" id="tc-certno"></div>
+      <div class="btn-row no-print">
+        <button class="btn" id="tc-print">Print / Save as PDF</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>Preview</h3>
+      <div id="print-area"><div id="tc-doc"></div></div>
+    </div>
+  </div>`;
+  const ids=["tc-name","tc-title","tc-date","tc-duration","tc-trainer","tc-certno"];
+  function refresh(){
+    const v=id=>esc(document.getElementById(id).value);
+    const logoHTML = ORG.logo ? `<img src="${ORG.logo}" style="max-height:50px;margin-bottom:10px;object-fit:contain;">` : "";
+    document.getElementById("tc-doc").innerHTML=`
+      <div class="cert">
+        ${logoHTML}
+        <div class="kicker">${esc(ORG.companyName||"FACTORY SAFETY TOOLKIT")}</div>
+        <h2>Certificate of Training</h2>
+        <div class="body-line">This is to certify that</div>
+        <div class="name">${v("tc-name")||"Employee Name"}</div>
+        <div class="body-line">has successfully completed training on</div>
+        <div class="body-line" style="font-weight:600;font-size:16px;">${v("tc-title")||"Training Title"}</div>
+        <div class="body-line">conducted on ${v("tc-date")||"—"} · Duration: ${v("tc-duration")||"—"}</div>
+        <div class="cert-meta">
+          <div>Trainer: ${v("tc-trainer")||"—"}</div>
+          <div>Certificate No: ${v("tc-certno")||"—"}</div>
+        </div>
+        <div class="hint" style="margin-top:10px;">Document No: ${esc(meta.docNo||"—")} · Rev: ${esc(meta.revNo||"—")} · Effective: ${esc(meta.effDate||"—")}</div>
+        ${docSignatureHTML(meta)}
+      </div>`;
+  }
+  wireDocControl(root, meta, refresh);
+  ids.forEach(id=>document.getElementById(id).oninput=refresh);
+  refresh();
+  document.getElementById("tc-print").onclick=()=>window.print();
+}
+
+/* ---------- EVACUATION MAP MAKER ---------- */
+function mountMapMaker(root){
+  const markerTypes=[
+    {key:"exit",icon:"🚪",label:"Exit"},
+    {key:"assembly",icon:"🟢",label:"Assembly point"},
+    {key:"extinguisher",icon:"🧯",label:"Fire extinguisher"},
+    {key:"hazard",icon:"☣️",label:"Hazard zone"},
+    {key:"room",icon:"🏷️",label:"Room label"}
+  ];
+  let active=markerTypes[0].key;
+  const placed=[];
+  const meta=newDocMeta();
+  root.innerHTML=`
+  <div class="workspace two-col">
+    <div class="card">
+      ${docControlHTML(meta)}
+      <h3>Build the map</h3>
+      <div class="map-palette no-print">
+        ${markerTypes.map(m=>`<button data-mk="${m.key}" class="${m.key===active?'active':''}">${m.icon} ${m.label}</button>`).join("")}
+      </div>
+      <div id="print-area">
+        <div id="map-doc-header"></div>
+        <div class="map-canvas" id="map-canvas"></div>
+        <ul class="map-legend" id="map-legend"></ul>
+        <div id="map-doc-sig"></div>
+      </div>
+      <p class="hint no-print">Click the canvas to drop the selected marker. Click a placed marker to remove it.</p>
+      <div class="btn-row no-print">
+        <button class="btn" id="map-print">Print / Save as PDF</button>
+        <button class="btn secondary" id="map-export">Download as SVG</button>
+        <button class="btn secondary" id="map-clear">Clear all</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>About this tool</h3>
+      <p class="hint">This is a lightweight evacuation map builder for a quick, printable reference — it is not a scaled architectural drawing. For statutory fire NOC submissions, use a professionally drafted, scaled evacuation plan.</p>
+    </div>
+  </div>`;
+  wireDocControl(root, meta, ()=>{
+    document.getElementById("map-doc-header").innerHTML = docHeaderHTML(TOOL_NAMES["evac-map"], meta);
+    document.getElementById("map-doc-sig").innerHTML = docSignatureHTML(meta);
+  });
+  document.getElementById("map-doc-header").innerHTML = docHeaderHTML(TOOL_NAMES["evac-map"], meta);
+  document.getElementById("map-doc-sig").innerHTML = docSignatureHTML(meta);
+  const paletteEl=root.querySelector(".map-palette");
+  paletteEl.querySelectorAll("button").forEach(b=>{
+    b.onclick=()=>{ active=b.dataset.mk; paletteEl.querySelectorAll("button").forEach(x=>x.classList.remove("active")); b.classList.add("active"); };
+  });
+  const canvas=document.getElementById("map-canvas");
+  canvas.onclick=(e)=>{
+    if(e.target.closest(".map-marker")) return;
+    const rect=canvas.getBoundingClientRect();
+    const x=((e.clientX-rect.left)/rect.width)*100;
+    const y=((e.clientY-rect.top)/rect.height)*100;
+    placed.push({type:active,x,y});
+    renderMarkers();
+  };
+  function renderMarkers(){
+    const mt=k=>markerTypes.find(m=>m.key===k);
+    canvas.innerHTML=placed.map((p,i)=>`<div class="map-marker" data-i="${i}" style="left:${p.x}%;top:${p.y}%;" title="Click to remove">${mt(p.type).icon}</div>`).join("");
+    canvas.querySelectorAll(".map-marker").forEach(el=>{
+      el.onclick=(ev)=>{ ev.stopPropagation(); placed.splice(el.dataset.i,1); renderMarkers(); };
+    });
+    const counts={};
+    placed.forEach(p=>counts[p.type]=(counts[p.type]||0)+1);
+    document.getElementById("map-legend").innerHTML = markerTypes.map(m=>`<li><span>${m.icon} ${m.label}</span><span>${counts[m.key]||0}</span></li>`).join("");
+  }
+  renderMarkers();
+  document.getElementById("map-clear").onclick=()=>{ placed.length=0; renderMarkers(); };
+  document.getElementById("map-print").onclick=()=>window.print();
+  document.getElementById("map-export").onclick=()=>{
+    const mt=k=>markerTypes.find(m=>m.key===k);
+    let svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" width="800" height="500"><rect width="800" height="500" fill="#f7f3e9"/>`;
+    placed.forEach(p=>{
+      svg+=`<text x="${p.x*8}" y="${p.y*5}" font-size="22" text-anchor="middle">${mt(p.type).icon}</text>`;
+    });
+    svg+=`</svg>`;
+    download("evacuation-map.svg",svg);
+  };
+}
+
+/* ============================= PDF TOOLS ============================= */
+if(window.pdfjsLib){
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+}
+function readFileArrayBuffer(file){
+  return new Promise((resolve,reject)=>{
+    const r=new FileReader();
+    r.onload=()=>resolve(r.result);
+    r.onerror=()=>reject(r.error||new Error("Could not read file"));
+    r.readAsArrayBuffer(file);
+  });
+}
+function fileSizeLabel(bytes){
+  if(bytes<1024) return bytes+" B";
+  if(bytes<1024*1024) return (bytes/1024).toFixed(1)+" KB";
+  return (bytes/(1024*1024)).toFixed(2)+" MB";
+}
+function downloadBlobFile(filename, blob){
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download=filename;
+  document.body.appendChild(a); a.click(); a.remove();
+}
+async function pdfjsGetDoc(bytes){
+  return await pdfjsLib.getDocument({data:bytes}).promise;
+}
+async function renderPageToCanvas(pdfjsDoc, pageNum, scale){
+  const page=await pdfjsDoc.getPage(pageNum);
+  const viewport=page.getViewport({scale});
+  const canvas=document.createElement("canvas");
+  canvas.width=viewport.width; canvas.height=viewport.height;
+  await page.render({canvasContext:canvas.getContext("2d"), viewport}).promise;
+  return canvas;
+}
+function loadImageEl(url){
+  return new Promise((resolve,reject)=>{
+    const img=new Image();
+    img.onload=()=>resolve(img);
+    img.onerror=()=>reject(new Error("Could not read this image"));
+    img.src=url;
+  });
+}
+async function normalizeImageToJpegBytes(file){
+  const url=URL.createObjectURL(file);
+  try{
+    const img=await loadImageEl(url);
+    const canvas=document.createElement("canvas");
+    canvas.width=img.naturalWidth; canvas.height=img.naturalHeight;
+    const ctx=canvas.getContext("2d");
+    ctx.fillStyle="#ffffff"; ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.drawImage(img,0,0);
+    const blob=await new Promise(res=>canvas.toBlob(res,"image/jpeg",0.92));
+    const bytes=await blob.arrayBuffer();
+    return {bytes, width:canvas.width, height:canvas.height};
+  } finally { URL.revokeObjectURL(url); }
+}
+function mountDropzone(container, opts){
+  const dz=document.createElement("div");
+  dz.className="dropzone";
+  dz.innerHTML=`<div class="dz-icon">📁</div><div class="dz-title">${opts.label||"Click to choose files"}</div><div class="dz-sub">${opts.sub||"or drag and drop here — nothing is uploaded anywhere"}</div>`;
+  const input=document.createElement("input");
+  input.type="file"; input.accept=opts.accept||""; input.multiple=!!opts.multiple; input.style.display="none";
+  if(opts.capture) input.setAttribute("capture", opts.capture);
+  dz.appendChild(input);
+  dz.onclick=()=>input.click();
+  ["dragover","dragenter"].forEach(evt=>dz.addEventListener(evt,(e)=>{e.preventDefault();dz.classList.add("drag");}));
+  ["dragleave","drop"].forEach(evt=>dz.addEventListener(evt,(e)=>{e.preventDefault();dz.classList.remove("drag");}));
+  dz.addEventListener("drop",(e)=>{ if(e.dataTransfer.files && e.dataTransfer.files.length) opts.onFiles(Array.from(e.dataTransfer.files)); });
+  input.onchange=()=>{ if(input.files.length) opts.onFiles(Array.from(input.files)); input.value=""; };
+  container.appendChild(dz);
+  return dz;
+}
+function fileChipListHTML(files){
+  return files.map((f,i)=>`
+    <li class="file-chip">
+      <span class="fc-move" data-up="${i}">▲</span><span class="fc-move" data-down="${i}">▼</span>
+      <span class="fc-name">${esc(f.name)}</span><span class="fc-size">${fileSizeLabel(f.size)}</span>
+      <button data-rm="${i}" type="button">✕</button>
+    </li>`).join("");
+}
+function wireFileChipList(listEl, files, onChange){
+  listEl.innerHTML=fileChipListHTML(files);
+  listEl.querySelectorAll("[data-rm]").forEach(b=>b.onclick=()=>{files.splice(Number(b.dataset.rm),1); onChange();});
+  listEl.querySelectorAll("[data-up]").forEach(b=>b.onclick=()=>{const i=Number(b.dataset.up); if(i>0){[files[i-1],files[i]]=[files[i],files[i-1]]; onChange();}});
+  listEl.querySelectorAll("[data-down]").forEach(b=>b.onclick=()=>{const i=Number(b.dataset.down); if(i<files.length-1){[files[i+1],files[i]]=[files[i],files[i+1]]; onChange();}});
+}
+function mountComingSoon(root, id){
+  const name=TOOL_NAMES[id];
+  const reason=PDF_COMING_SOON[id];
+  root.innerHTML=`
+  <div class="card coming-soon-card">
+    <h3>🚧 ${esc(name)} — coming soon</h3>
+    <p class="hint" style="margin-top:10px;font-size:14px;">${esc(reason)}</p>
+    <p class="hint" style="margin-top:14px;">Everything else in PDF Tools already works fully in your browser — files are processed on your own device and never uploaded anywhere.</p>
+  </div>`;
+}
+
+/* ---- Merge PDF ---- */
+function mountPdfMerge(root){
+  let files=[];
+  root.innerHTML=`
+  <div class="workspace two-col">
+    <div class="card">
+      <div class="pdf-note"><b>Runs entirely in your browser</b> — your PDFs are never uploaded anywhere.</div>
+      <div id="dz-host"></div>
+      <ul class="file-chip-list" id="merge-list"></ul>
+      <div class="btn-row"><button class="btn" id="merge-go" disabled>Merge &amp; Download</button></div>
+      <div class="progress-line" id="merge-progress" style="display:none;"><div class="fill" id="merge-fill"></div></div>
+      <div id="merge-status" class="hint"></div>
+    </div>
+    <div class="card"><h3>How it works</h3><p class="hint">Add two or more PDFs, put them in the order you want using the arrows, then merge. Pages keep their original size and orientation.</p></div>
+  </div>`;
+  mountDropzone(document.getElementById("dz-host"),{accept:"application/pdf",multiple:true,label:"Click to add PDF files",
+    onFiles:(fs)=>{ files=files.concat(fs.filter(f=>f.type==="application/pdf"||f.name.toLowerCase().endsWith(".pdf"))); renderList(); }});
+  const listEl=document.getElementById("merge-list");
+  const goBtn=document.getElementById("merge-go");
+  function renderList(){ wireFileChipList(listEl, files, renderList); goBtn.disabled = files.length<2; }
+  goBtn.onclick=async()=>{
+    const statusEl=document.getElementById("merge-status");
+    const prog=document.getElementById("merge-progress"); const fill=document.getElementById("merge-fill");
+    prog.style.display="block"; goBtn.disabled=true; statusEl.textContent="Merging...";
+    try{
+      const {PDFDocument}=PDFLib;
+      const merged=await PDFDocument.create();
+      for(let i=0;i<files.length;i++){
+        const bytes=await readFileArrayBuffer(files[i]);
+        const src=await PDFDocument.load(bytes,{ignoreEncryption:true});
+        const pages=await merged.copyPages(src, src.getPageIndices());
+        pages.forEach(p=>merged.addPage(p));
+        fill.style.width=Math.round(((i+1)/files.length)*100)+"%";
+      }
+      const outBytes=await merged.save();
+      downloadBlobFile("merged.pdf", new Blob([outBytes],{type:"application/pdf"}));
+      statusEl.textContent="Done — "+files.length+" files merged.";
+    }catch(err){ statusEl.textContent="Couldn't merge these files: "+err.message; }
+    goBtn.disabled=false;
+  };
+  renderList();
+}
+
+/* ---- Split PDF ---- */
+function mountPdfSplit(root){
+  let file=null;
+  root.innerHTML=`
+  <div class="workspace two-col">
+    <div class="card">
+      <div class="pdf-note"><b>Runs entirely in your browser.</b></div>
+      <div id="dz-host"></div>
+      <div id="split-file" class="hint" style="margin-top:10px;"></div>
+      <div class="field" style="margin-top:14px;"><label>Split mode</label>
+        <select id="split-mode">
+          <option value="all">Every page as its own PDF (zipped)</option>
+          <option value="range">Custom page ranges</option>
+        </select>
+      </div>
+      <div class="field" id="split-range-field" style="display:none;"><label>Page ranges (e.g. 1-3,5,7-9)</label><input type="text" id="split-range" placeholder="1-3,5,7-9"></div>
+      <div class="btn-row"><button class="btn" id="split-go" disabled>Split &amp; Download</button></div>
+      <div id="split-status" class="hint"></div>
+    </div>
+    <div class="card"><h3>How it works</h3><p class="hint">Upload one PDF. Split every page into its own file, or type ranges like <code>1-3,5,7-9</code> to get exactly the sets you need.</p></div>
+  </div>`;
+  mountDropzone(document.getElementById("dz-host"),{accept:"application/pdf",label:"Click to choose a PDF",
+    onFiles:(fs)=>{ file=fs[0]; document.getElementById("split-file").textContent=file.name+" — "+fileSizeLabel(file.size); document.getElementById("split-go").disabled=false; }});
+  document.getElementById("split-mode").onchange=(e)=>{ document.getElementById("split-range-field").style.display = e.target.value==="range"?"block":"none"; };
+  document.getElementById("split-go").onclick=async()=>{
+    const statusEl=document.getElementById("split-status"); const goBtn=document.getElementById("split-go");
+    goBtn.disabled=true; statusEl.textContent="Splitting...";
+    try{
+      const {PDFDocument}=PDFLib;
+      const bytes=await readFileArrayBuffer(file);
+      const src=await PDFDocument.load(bytes,{ignoreEncryption:true});
+      const total=src.getPageCount();
+      const mode=document.getElementById("split-mode").value;
+      let groups=[];
+      if(mode==="all"){ for(let i=0;i<total;i++) groups.push([i]); }
+      else{
+        const raw=document.getElementById("split-range").value.trim();
+        if(!raw){ statusEl.textContent="Enter at least one page range."; goBtn.disabled=false; return; }
+        raw.split(",").forEach(part=>{
+          part=part.trim(); if(!part) return;
+          if(part.includes("-")){
+            const [a,b]=part.split("-").map(n=>parseInt(n.trim(),10));
+            const idx=[]; for(let p=a;p<=b;p++) if(p>=1&&p<=total) idx.push(p-1);
+            if(idx.length) groups.push(idx);
+          } else { const p=parseInt(part,10); if(p>=1&&p<=total) groups.push([p-1]); }
+        });
+      }
+      if(!groups.length){ statusEl.textContent="No valid pages found in that range."; goBtn.disabled=false; return; }
+      if(groups.length===1){
+        const doc=await PDFDocument.create();
+        const pages=await doc.copyPages(src, groups[0]);
+        pages.forEach(p=>doc.addPage(p));
+        downloadBlobFile("split.pdf", new Blob([await doc.save()],{type:"application/pdf"}));
+      } else {
+        const zip=new JSZip();
+        for(let i=0;i<groups.length;i++){
+          const doc=await PDFDocument.create();
+          const pages=await doc.copyPages(src, groups[i]);
+          pages.forEach(p=>doc.addPage(p));
+          zip.file(`part-${i+1}.pdf`, await doc.save());
+        }
+        downloadBlobFile("split-pages.zip", await zip.generateAsync({type:"blob"}));
+      }
+      statusEl.textContent="Done — "+groups.length+" file(s) created.";
+    }catch(err){ statusEl.textContent="Couldn't split this file: "+err.message; }
+    goBtn.disabled=false;
+  };
+}
+
+/* ---- Rotate PDF ---- */
+function mountPdfRotate(root){
+  let file=null;
+  root.innerHTML=`
+  <div class="workspace two-col">
+    <div class="card">
+      <div class="pdf-note"><b>Runs entirely in your browser.</b></div>
+      <div id="dz-host"></div>
+      <div id="rotate-file" class="hint" style="margin-top:10px;"></div>
+      <div class="field" style="margin-top:14px;"><label>Rotate all pages by</label>
+        <select id="rotate-angle"><option value="90">90° clockwise</option><option value="180">180°</option><option value="270">90° counter-clockwise</option></select>
+      </div>
+      <div class="btn-row"><button class="btn" id="rotate-go" disabled>Rotate &amp; Download</button></div>
+      <div id="rotate-status" class="hint"></div>
+    </div>
+    <div class="card"><h3>How it works</h3><p class="hint">Rotates every page by the angle you choose. To rotate only specific pages, use Organize PDF instead.</p></div>
+  </div>`;
+  mountDropzone(document.getElementById("dz-host"),{accept:"application/pdf",label:"Click to choose a PDF",
+    onFiles:(fs)=>{ file=fs[0]; document.getElementById("rotate-file").textContent=file.name; document.getElementById("rotate-go").disabled=false; }});
+  document.getElementById("rotate-go").onclick=async()=>{
+    const statusEl=document.getElementById("rotate-status"); const goBtn=document.getElementById("rotate-go");
+    goBtn.disabled=true; statusEl.textContent="Rotating...";
+    try{
+      const {PDFDocument,degrees}=PDFLib;
+      const bytes=await readFileArrayBuffer(file);
+      const doc=await PDFDocument.load(bytes,{ignoreEncryption:true});
+      const angle=Number(document.getElementById("rotate-angle").value);
+      doc.getPages().forEach(p=>{ const cur=p.getRotation().angle||0; p.setRotation(degrees((cur+angle)%360)); });
+      downloadBlobFile("rotated.pdf", new Blob([await doc.save()],{type:"application/pdf"}));
+      statusEl.textContent="Done.";
+    }catch(err){ statusEl.textContent="Couldn't rotate this file: "+err.message; }
+    goBtn.disabled=false;
+  };
+}
+
+/* ---- Organize PDF ---- */
+function mountPdfOrganize(root){
+  let file=null, order=[], removed=new Set(), pdfjsDoc=null;
+  root.innerHTML=`
+  <div class="workspace" style="grid-template-columns:1fr;">
+    <div class="card">
+      <div class="pdf-note"><b>Runs entirely in your browser.</b></div>
+      <div id="dz-host"></div>
+      <div id="org-status" class="hint" style="margin-top:10px;"></div>
+      <div class="thumb-grid" id="org-grid"></div>
+      <div class="btn-row"><button class="btn" id="org-go" style="display:none;">Save &amp; Download</button></div>
+    </div>
+  </div>`;
+  mountDropzone(document.getElementById("dz-host"),{accept:"application/pdf",label:"Click to choose a PDF",onFiles:async(fs)=>{
+    file=fs[0];
+    document.getElementById("org-status").textContent="Loading pages...";
+    const bytes=await readFileArrayBuffer(file);
+    pdfjsDoc=await pdfjsGetDoc(bytes);
+    order=Array.from({length:pdfjsDoc.numPages},(_,i)=>i);
+    removed=new Set();
+    await renderThumbs();
+    document.getElementById("org-status").textContent=file.name+" — "+pdfjsDoc.numPages+" pages. Reorder with the arrows, mark pages for deletion, then save.";
+    document.getElementById("org-go").style.display="inline-flex";
+  }});
+  async function renderThumbs(){
+    const grid=document.getElementById("org-grid"); grid.innerHTML="";
+    for(let i=0;i<order.length;i++){
+      const pageNum=order[i]+1;
+      const canvas=await renderPageToCanvas(pdfjsDoc,pageNum,0.25);
+      const card=document.createElement("div");
+      card.className="thumb-card"+(removed.has(order[i])?" marked":"");
+      card.innerHTML=`<img src="${canvas.toDataURL('image/jpeg',0.7)}"><div class="th-num">Page ${pageNum}</div>
+        <div class="th-actions"><button data-up="${i}" type="button">▲</button><button data-down="${i}" type="button">▼</button><button data-del="${i}" type="button">${removed.has(order[i])?"Undo":"Delete"}</button></div>`;
+      grid.appendChild(card);
+    }
+    grid.querySelectorAll("[data-up]").forEach(b=>b.onclick=()=>{const i=Number(b.dataset.up); if(i>0){[order[i-1],order[i]]=[order[i],order[i-1]]; renderThumbs();}});
+    grid.querySelectorAll("[data-down]").forEach(b=>b.onclick=()=>{const i=Number(b.dataset.down); if(i<order.length-1){[order[i+1],order[i]]=[order[i],order[i+1]]; renderThumbs();}});
+    grid.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{const i=Number(b.dataset.del); const pg=order[i]; if(removed.has(pg)) removed.delete(pg); else removed.add(pg); renderThumbs();});
+  }
+  document.getElementById("org-go").onclick=async()=>{
+    const statusEl=document.getElementById("org-status");
+    statusEl.textContent="Saving...";
+    try{
+      const {PDFDocument}=PDFLib;
+      const bytes=await readFileArrayBuffer(file);
+      const src=await PDFDocument.load(bytes,{ignoreEncryption:true});
+      const keepOrder=order.filter(p=>!removed.has(p));
+      if(!keepOrder.length){ statusEl.textContent="You can't delete every page."; return; }
+      const doc=await PDFDocument.create();
+      const pages=await doc.copyPages(src, keepOrder);
+      pages.forEach(p=>doc.addPage(p));
+      downloadBlobFile("organized.pdf", new Blob([await doc.save()],{type:"application/pdf"}));
+      statusEl.textContent="Done — "+keepOrder.length+" pages saved.";
+    }catch(err){ statusEl.textContent="Couldn't save: "+err.message; }
+  };
+}
+
+/* ---- Watermark ---- */
+function mountPdfWatermark(root){
+  let file=null;
+  root.innerHTML=`
+  <div class="workspace two-col">
+    <div class="card">
+      <div class="pdf-note"><b>Runs entirely in your browser.</b></div>
+      <div id="dz-host"></div>
+      <div id="wm-file" class="hint" style="margin-top:10px;"></div>
+      <div class="field" style="margin-top:14px;"><label>Watermark text</label><input type="text" id="wm-text" value="CONFIDENTIAL"></div>
+      <div class="field-row">
+        <div class="field"><label>Font size</label><input type="number" id="wm-size" value="48"></div>
+        <div class="field"><label>Opacity (0-1)</label><input type="number" id="wm-opacity" value="0.25" step="0.05" min="0.05" max="1"></div>
+      </div>
+      <div class="field"><label>Rotation (degrees)</label><input type="number" id="wm-rotate" value="45"></div>
+      <div class="btn-row"><button class="btn" id="wm-go" disabled>Add Watermark &amp; Download</button></div>
+      <div id="wm-status" class="hint"></div>
+    </div>
+    <div class="card"><h3>How it works</h3><p class="hint">The text is stamped across the centre of every page at the opacity you choose.</p></div>
+  </div>`;
+  mountDropzone(document.getElementById("dz-host"),{accept:"application/pdf",label:"Click to choose a PDF",
+    onFiles:(fs)=>{ file=fs[0]; document.getElementById("wm-file").textContent=file.name; document.getElementById("wm-go").disabled=false; }});
+  document.getElementById("wm-go").onclick=async()=>{
+    const statusEl=document.getElementById("wm-status"); const goBtn=document.getElementById("wm-go");
+    goBtn.disabled=true; statusEl.textContent="Applying watermark...";
+    try{
+      const {PDFDocument,rgb,degrees,StandardFonts}=PDFLib;
+      const bytes=await readFileArrayBuffer(file);
+      const doc=await PDFDocument.load(bytes,{ignoreEncryption:true});
+      const font=await doc.embedFont(StandardFonts.HelveticaBold);
+      const text=document.getElementById("wm-text").value||"WATERMARK";
+      const size=Number(document.getElementById("wm-size").value||48);
+      const opacity=Number(document.getElementById("wm-opacity").value||0.25);
+      const rotate=Number(document.getElementById("wm-rotate").value||45);
+      const textWidth=font.widthOfTextAtSize(text,size);
+      doc.getPages().forEach(page=>{
+        const {width,height}=page.getSize();
+        page.drawText(text,{x:width/2-textWidth/2, y:height/2, size, font, color:rgb(0.5,0.5,0.5), opacity, rotate:degrees(rotate)});
+      });
+      downloadBlobFile("watermarked.pdf", new Blob([await doc.save()],{type:"application/pdf"}));
+      statusEl.textContent="Done.";
+    }catch(err){ statusEl.textContent="Couldn't add watermark: "+err.message; }
+    goBtn.disabled=false;
+  };
+}
+
+/* ---- Page numbers ---- */
+function mountPdfPageNumbers(root){
+  let file=null;
+  root.innerHTML=`
+  <div class="workspace two-col">
+    <div class="card">
+      <div class="pdf-note"><b>Runs entirely in your browser.</b></div>
+      <div id="dz-host"></div>
+      <div id="pn-file" class="hint" style="margin-top:10px;"></div>
+      <div class="field" style="margin-top:14px;"><label>Position</label>
+        <select id="pn-pos"><option value="bottom-center">Bottom centre</option><option value="bottom-right">Bottom right</option><option value="bottom-left">Bottom left</option><option value="top-center">Top centre</option><option value="top-right">Top right</option></select>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Format</label><select id="pn-format"><option value="n">1, 2, 3…</option><option value="page-n">Page 1, Page 2…</option><option value="n-of-total">1 / 10, 2 / 10…</option></select></div>
+        <div class="field"><label>Start at</label><input type="number" id="pn-start" value="1"></div>
+      </div>
+      <div class="btn-row"><button class="btn" id="pn-go" disabled>Add Numbers &amp; Download</button></div>
+      <div id="pn-status" class="hint"></div>
+    </div>
+    <div class="card"><h3>How it works</h3><p class="hint">Numbers are stamped onto every page in the position and format you choose.</p></div>
+  </div>`;
+  mountDropzone(document.getElementById("dz-host"),{accept:"application/pdf",label:"Click to choose a PDF",
+    onFiles:(fs)=>{ file=fs[0]; document.getElementById("pn-file").textContent=file.name; document.getElementById("pn-go").disabled=false; }});
+  document.getElementById("pn-go").onclick=async()=>{
+    const statusEl=document.getElementById("pn-status"); const goBtn=document.getElementById("pn-go");
+    goBtn.disabled=true; statusEl.textContent="Adding page numbers...";
+    try{
+      const {PDFDocument,rgb,StandardFonts}=PDFLib;
+      const bytes=await readFileArrayBuffer(file);
+      const doc=await PDFDocument.load(bytes,{ignoreEncryption:true});
+      const font=await doc.embedFont(StandardFonts.Helvetica);
+      const pos=document.getElementById("pn-pos").value;
+      const format=document.getElementById("pn-format").value;
+      const start=Number(document.getElementById("pn-start").value||1);
+      const pages=doc.getPages(); const total=pages.length;
+      pages.forEach((page,i)=>{
+        const n=start+i;
+        const label = format==="page-n" ? `Page ${n}` : format==="n-of-total" ? `${n} / ${total}` : `${n}`;
+        const size=10; const {width,height}=page.getSize();
+        const textWidth=font.widthOfTextAtSize(label,size);
+        let x = pos.includes("center") ? width/2-textWidth/2 : pos.includes("right") ? width-textWidth-32 : 32;
+        let y = pos.startsWith("bottom") ? 24 : height-32;
+        page.drawText(label,{x,y,size,font,color:rgb(0.2,0.2,0.2)});
+      });
+      downloadBlobFile("numbered.pdf", new Blob([await doc.save()],{type:"application/pdf"}));
+      statusEl.textContent="Done.";
+    }catch(err){ statusEl.textContent="Couldn't add page numbers: "+err.message; }
+    goBtn.disabled=false;
+  };
+}
+
+/* ---- PDF to JPG ---- */
+function mountPdfToJpg(root){
+  let file=null;
+  root.innerHTML=`
+  <div class="workspace two-col">
+    <div class="card">
+      <div class="pdf-note"><b>Runs entirely in your browser.</b></div>
+      <div id="dz-host"></div>
+      <div id="p2j-file" class="hint" style="margin-top:10px;"></div>
+      <div class="field" style="margin-top:14px;"><label>Image quality</label><select id="p2j-scale"><option value="1">Standard</option><option value="2" selected>High</option><option value="3">Very high</option></select></div>
+      <div class="btn-row"><button class="btn" id="p2j-go" disabled>Convert &amp; Download</button></div>
+      <div class="progress-line" id="p2j-progress" style="display:none;"><div class="fill" id="p2j-fill"></div></div>
+      <div id="p2j-status" class="hint"></div>
+    </div>
+    <div class="card"><h3>How it works</h3><p class="hint">Each page becomes one JPG. A single-page PDF downloads directly; multi-page PDFs download as a ZIP.</p></div>
+  </div>`;
+  mountDropzone(document.getElementById("dz-host"),{accept:"application/pdf",label:"Click to choose a PDF",
+    onFiles:(fs)=>{ file=fs[0]; document.getElementById("p2j-file").textContent=file.name; document.getElementById("p2j-go").disabled=false; }});
+  document.getElementById("p2j-go").onclick=async()=>{
+    const statusEl=document.getElementById("p2j-status"); const goBtn=document.getElementById("p2j-go");
+    const prog=document.getElementById("p2j-progress"); const fill=document.getElementById("p2j-fill");
+    goBtn.disabled=true; statusEl.textContent="Rendering pages..."; prog.style.display="block";
+    try{
+      const bytes=await readFileArrayBuffer(file);
+      const pdfjsDoc=await pdfjsGetDoc(bytes);
+      const scale=Number(document.getElementById("p2j-scale").value);
+      const n=pdfjsDoc.numPages;
+      if(n===1){
+        const canvas=await renderPageToCanvas(pdfjsDoc,1,scale);
+        canvas.toBlob(blob=>downloadBlobFile("page-1.jpg",blob),"image/jpeg",0.92);
+      } else {
+        const zip=new JSZip();
+        for(let i=1;i<=n;i++){
+          const canvas=await renderPageToCanvas(pdfjsDoc,i,scale);
+          const blob=await new Promise(res=>canvas.toBlob(res,"image/jpeg",0.92));
+          zip.file(`page-${i}.jpg`, blob);
+          fill.style.width=Math.round((i/n)*100)+"%";
+        }
+        downloadBlobFile("pages.zip", await zip.generateAsync({type:"blob"}));
+      }
+      statusEl.textContent="Done — "+n+" page(s) converted.";
+    }catch(err){ statusEl.textContent="Couldn't convert this file: "+err.message; }
+    goBtn.disabled=false;
+  };
+}
+
+/* ---- JPG to PDF ---- */
+function mountJpgToPdf(root){
+  let files=[];
+  root.innerHTML=`
+  <div class="workspace two-col">
+    <div class="card">
+      <div class="pdf-note"><b>Runs entirely in your browser.</b></div>
+      <div id="dz-host"></div>
+      <ul class="file-chip-list" id="j2p-list"></ul>
+      <div class="field" style="margin-top:10px;"><label>Page size</label><select id="j2p-size"><option value="fit">Fit to image</option><option value="a4">A4</option></select></div>
+      <div class="btn-row"><button class="btn" id="j2p-go" disabled>Create PDF &amp; Download</button></div>
+      <div id="j2p-status" class="hint"></div>
+    </div>
+    <div class="card"><h3>How it works</h3><p class="hint">Add JPG or PNG images, put them in order, and each becomes one page in a single PDF.</p></div>
+  </div>`;
+  mountDropzone(document.getElementById("dz-host"),{accept:"image/jpeg,image/png,image/*",multiple:true,label:"Click to add images",
+    onFiles:(fs)=>{ files=files.concat(fs); renderList(); }});
+  const listEl=document.getElementById("j2p-list");
+  function renderList(){ wireFileChipList(listEl, files, renderList); document.getElementById("j2p-go").disabled = files.length<1; }
+  document.getElementById("j2p-go").onclick=async()=>{
+    const statusEl=document.getElementById("j2p-status"); const goBtn=document.getElementById("j2p-go");
+    goBtn.disabled=true; statusEl.textContent="Building PDF...";
+    try{
+      const {PDFDocument}=PDFLib;
+      const doc=await PDFDocument.create();
+      const sizeMode=document.getElementById("j2p-size").value;
+      for(const file of files){
+        const {bytes,width,height}=await normalizeImageToJpegBytes(file);
+        const img=await doc.embedJpg(bytes);
+        if(sizeMode==="a4"){
+          const page=doc.addPage([595.28,841.89]);
+          const scale=Math.min(page.getWidth()/width, page.getHeight()/height)*0.92;
+          const w=width*scale, h=height*scale;
+          page.drawImage(img,{x:(page.getWidth()-w)/2, y:(page.getHeight()-h)/2, width:w, height:h});
+        } else {
+          const page=doc.addPage([width,height]);
+          page.drawImage(img,{x:0,y:0,width,height});
+        }
+      }
+      downloadBlobFile("images.pdf", new Blob([await doc.save()],{type:"application/pdf"}));
+      statusEl.textContent="Done — "+files.length+" image(s) added.";
+    }catch(err){ statusEl.textContent="Couldn't build the PDF: "+err.message; }
+    goBtn.disabled=false;
+  };
+}
+
+/* ---- Sign PDF ---- */
+function mountPdfSign(root){
+  let file=null, hasSig=false, drawing=false, position="bottom-right";
+  root.innerHTML=`
+  <div class="workspace two-col">
+    <div class="card">
+      <div class="pdf-note"><b>Runs entirely in your browser.</b> This adds a visual signature image — not a certificate-based digital signature.</div>
+      <div id="dz-host"></div>
+      <div id="sign-file" class="hint" style="margin-top:10px;"></div>
+      <div class="field" style="margin-top:14px;"><label>Draw your signature</label>
+        <div class="sig-pad-wrap"><canvas id="sig-canvas" width="500" height="160"></canvas></div>
+        <div class="btn-row"><button class="btn secondary small" id="sig-clear" type="button">Clear</button></div>
+      </div>
+      <div class="field"><label>Page to sign</label><input type="number" id="sign-page" value="1" min="1"></div>
+      <div class="field"><label>Position on page</label>
+        <div class="pos-grid" id="sign-pos">
+          <button data-pos="top-left" type="button">↖</button><button data-pos="top-center" type="button">↑</button><button data-pos="top-right" type="button">↗</button>
+          <button data-pos="center-left" type="button">←</button><button data-pos="center" type="button">•</button><button data-pos="center-right" type="button">→</button>
+          <button data-pos="bottom-left" type="button">↙</button><button data-pos="bottom-center" type="button">↓</button><button data-pos="bottom-right" class="active" type="button">↘</button>
+        </div>
+      </div>
+      <div class="btn-row"><button class="btn" id="sign-go" disabled>Sign &amp; Download</button></div>
+      <div id="sign-status" class="hint"></div>
+    </div>
+    <div class="card"><h3>How it works</h3><p class="hint">Draw your signature above, choose the page and corner, then apply. Good for informal sign-offs and internal approvals.</p></div>
+  </div>`;
+  mountDropzone(document.getElementById("dz-host"),{accept:"application/pdf",label:"Click to choose a PDF",onFiles:async(fs)=>{
+    file=fs[0];
+    const bytes=await readFileArrayBuffer(file);
+    const pdfjsDoc=await pdfjsGetDoc(bytes);
+    document.getElementById("sign-file").textContent=file.name+" — "+pdfjsDoc.numPages+" page(s)";
+    document.getElementById("sign-page").max=pdfjsDoc.numPages;
+    checkReady();
+  }});
+  const sigCanvas=document.getElementById("sig-canvas"); const sigCtx=sigCanvas.getContext("2d");
+  sigCtx.lineWidth=2.4; sigCtx.lineCap="round"; sigCtx.strokeStyle="#1a2233";
+  function posFromEvent(e){
+    const rect=sigCanvas.getBoundingClientRect();
+    const cx=(e.touches?e.touches[0].clientX:e.clientX)-rect.left;
+    const cy=(e.touches?e.touches[0].clientY:e.clientY)-rect.top;
+    return {x:cx*(sigCanvas.width/rect.width), y:cy*(sigCanvas.height/rect.height)};
+  }
+  function start(e){ drawing=true; const p=posFromEvent(e); sigCtx.beginPath(); sigCtx.moveTo(p.x,p.y); e.preventDefault(); }
+  function move(e){ if(!drawing) return; const p=posFromEvent(e); sigCtx.lineTo(p.x,p.y); sigCtx.stroke(); hasSig=true; checkReady(); e.preventDefault(); }
+  function end(){ drawing=false; }
+  sigCanvas.addEventListener("mousedown",start); sigCanvas.addEventListener("mousemove",move); window.addEventListener("mouseup",end);
+  sigCanvas.addEventListener("touchstart",start,{passive:false}); sigCanvas.addEventListener("touchmove",move,{passive:false}); sigCanvas.addEventListener("touchend",end);
+  document.getElementById("sig-clear").onclick=()=>{ sigCtx.clearRect(0,0,sigCanvas.width,sigCanvas.height); hasSig=false; checkReady(); };
+  document.getElementById("sign-pos").querySelectorAll("[data-pos]").forEach(b=>{
+    b.onclick=()=>{ position=b.dataset.pos; document.querySelectorAll("#sign-pos [data-pos]").forEach(x=>x.classList.remove("active")); b.classList.add("active"); };
+  });
+  function checkReady(){ document.getElementById("sign-go").disabled = !(file && hasSig); }
+  document.getElementById("sign-go").onclick=async()=>{
+    const statusEl=document.getElementById("sign-status"); const goBtn=document.getElementById("sign-go");
+    goBtn.disabled=true; statusEl.textContent="Adding signature...";
+    try{
+      const {PDFDocument}=PDFLib;
+      const bytes=await readFileArrayBuffer(file);
+      const doc=await PDFDocument.load(bytes,{ignoreEncryption:true});
+      const sigBytes=await (await fetch(sigCanvas.toDataURL("image/png"))).arrayBuffer();
+      const sigImg=await doc.embedPng(sigBytes);
+      const pn=Math.min(Math.max(1,Number(document.getElementById("sign-page").value||1)), doc.getPageCount());
+      const page=doc.getPage(pn-1);
+      const {width,height}=page.getSize();
+      const sigW=160, sigH=sigW*(sigImg.height/sigImg.width), margin=28;
+      let x = position.includes("left") ? margin : position.includes("right") ? width-sigW-margin : (width-sigW)/2;
+      let y = position.startsWith("top") ? height-sigH-margin : position.startsWith("bottom") ? margin : (height-sigH)/2;
+      page.drawImage(sigImg,{x,y,width:sigW,height:sigH});
+      downloadBlobFile("signed.pdf", new Blob([await doc.save()],{type:"application/pdf"}));
+      statusEl.textContent="Done.";
+    }catch(err){ statusEl.textContent="Couldn't sign this file: "+err.message; }
+    goBtn.disabled=false;
+  };
+}
+
+/* ---- Compress PDF ---- */
+function mountPdfCompress(root){
+  let file=null;
+  root.innerHTML=`
+  <div class="workspace two-col">
+    <div class="card">
+      <div class="pdf-note"><b>How this works:</b> each page is re-rendered as a compressed image. This shrinks scanned or image-heavy PDFs well, but the result is no longer text-searchable — for text-heavy PDFs the trade-off usually isn't worth it.</div>
+      <div id="dz-host"></div>
+      <div id="cmp-file" class="hint" style="margin-top:10px;"></div>
+      <div class="field" style="margin-top:14px;"><label>Compression level</label>
+        <select id="cmp-level">
+          <option value="0.4|1">High compression (smallest file)</option>
+          <option value="0.6|1.3" selected>Balanced</option>
+          <option value="0.8|1.6">Low compression (best quality)</option>
+        </select>
+      </div>
+      <div class="btn-row"><button class="btn" id="cmp-go" disabled>Compress &amp; Download</button></div>
+      <div class="progress-line" id="cmp-progress" style="display:none;"><div class="fill" id="cmp-fill"></div></div>
+      <div id="cmp-status" class="hint"></div>
+    </div>
+    <div class="card"><h3>Original vs result</h3><div id="cmp-sizes" class="hint">Upload a PDF to see the size comparison after compressing.</div></div>
+  </div>`;
+  mountDropzone(document.getElementById("dz-host"),{accept:"application/pdf",label:"Click to choose a PDF",
+    onFiles:(fs)=>{ file=fs[0]; document.getElementById("cmp-file").textContent=file.name+" — "+fileSizeLabel(file.size); document.getElementById("cmp-go").disabled=false; }});
+  document.getElementById("cmp-go").onclick=async()=>{
+    const statusEl=document.getElementById("cmp-status"); const goBtn=document.getElementById("cmp-go");
+    const prog=document.getElementById("cmp-progress"); const fill=document.getElementById("cmp-fill");
+    goBtn.disabled=true; statusEl.textContent="Compressing..."; prog.style.display="block";
+    try{
+      const [quality,scale]=document.getElementById("cmp-level").value.split("|").map(Number);
+      const bytes=await readFileArrayBuffer(file);
+      const pdfjsDoc=await pdfjsGetDoc(bytes);
+      const {PDFDocument}=PDFLib;
+      const outDoc=await PDFDocument.create();
+      const n=pdfjsDoc.numPages;
+      for(let i=1;i<=n;i++){
+        const canvas=await renderPageToCanvas(pdfjsDoc,i,scale);
+        const jpgBlob=await new Promise(res=>canvas.toBlob(res,"image/jpeg",quality));
+        const jpgBytes=await jpgBlob.arrayBuffer();
+        const img=await outDoc.embedJpg(jpgBytes);
+        const page=outDoc.addPage([canvas.width/scale, canvas.height/scale]);
+        page.drawImage(img,{x:0,y:0,width:page.getWidth(),height:page.getHeight()});
+        fill.style.width=Math.round((i/n)*100)+"%";
+      }
+      const outBytes=await outDoc.save();
+      const outBlob=new Blob([outBytes],{type:"application/pdf"});
+      downloadBlobFile("compressed.pdf", outBlob);
+      document.getElementById("cmp-sizes").innerHTML=`Original: <b>${fileSizeLabel(file.size)}</b> → Compressed: <b>${fileSizeLabel(outBlob.size)}</b>`;
+      statusEl.textContent="Done.";
+    }catch(err){ statusEl.textContent="Couldn't compress this file: "+err.message; }
+    goBtn.disabled=false;
+  };
+}
+
+/* ---- HTML to PDF (paste-content) ---- */
+function mountHtmlToPdf(root){
+  root.innerHTML=`
+  <div class="workspace two-col">
+    <div class="card">
+      <div class="pdf-note"><b>Note:</b> browsers block client-side scripts from fetching arbitrary external pages (CORS security), so a live URL can't be pulled in directly. Paste the text or HTML content below instead, then print it to PDF.</div>
+      <div class="field"><label>Title</label><input type="text" id="h2p-title" placeholder="Document title"></div>
+      <div class="field"><label>Content (plain text or simple HTML)</label><textarea id="h2p-content" style="min-height:220px;" placeholder="Paste or type your content here..."></textarea></div>
+      <div class="btn-row no-print"><button class="btn" id="h2p-print">Print / Save as PDF</button></div>
+    </div>
+    <div class="card"><h3>Preview</h3><div id="print-area"><div id="h2p-doc" class="doc-wrap"></div></div></div>
+  </div>`;
+  function refresh(){
+    const title=document.getElementById("h2p-title").value||"Untitled document";
+    const content=document.getElementById("h2p-content").value||"";
+    const looksLikeHtml=/<[a-z][\s\S]*>/i.test(content);
+    document.getElementById("h2p-doc").innerHTML=`
+      <h2 style="margin-bottom:14px;">${esc(title)}</h2>
+      <div style="font-size:14px;line-height:1.6;white-space:${looksLikeHtml?"normal":"pre-wrap"};">${looksLikeHtml?content:esc(content)}</div>`;
+  }
+  document.getElementById("h2p-title").oninput=refresh;
+  document.getElementById("h2p-content").oninput=refresh;
+  refresh();
+  document.getElementById("h2p-print").onclick=()=>window.print();
+}
+
+/* ---- Scan to PDF (same-device camera capture) ---- */
+function mountScanToPdf(root){
+  let files=[];
+  root.innerHTML=`
+  <div class="workspace two-col">
+    <div class="card">
+      <div class="pdf-note"><b>Note:</b> scanning on your phone and having it appear on a different computer needs a server to relay the images, which this offline toolkit doesn't have. On a phone, the button below opens your camera directly.</div>
+      <div id="dz-host"></div>
+      <ul class="file-chip-list" id="scan-list"></ul>
+      <div class="btn-row"><button class="btn" id="scan-go" disabled>Create PDF &amp; Download</button></div>
+      <div id="scan-status" class="hint"></div>
+    </div>
+    <div class="card"><h3>How it works</h3><p class="hint">Capture or upload each page as a photo, arrange them in order, then combine into one PDF.</p></div>
+  </div>`;
+  mountDropzone(document.getElementById("dz-host"),{accept:"image/*",multiple:true,capture:"environment",label:"Tap to take a photo or choose images",
+    onFiles:(fs)=>{ files=files.concat(fs); renderList(); }});
+  const listEl=document.getElementById("scan-list");
+  function renderList(){ wireFileChipList(listEl, files, renderList); document.getElementById("scan-go").disabled = files.length<1; }
+  document.getElementById("scan-go").onclick=async()=>{
+    const statusEl=document.getElementById("scan-status"); const goBtn=document.getElementById("scan-go");
+    goBtn.disabled=true; statusEl.textContent="Building PDF...";
+    try{
+      const {PDFDocument}=PDFLib;
+      const doc=await PDFDocument.create();
+      for(const file of files){
+        const {bytes,width,height}=await normalizeImageToJpegBytes(file);
+        const img=await doc.embedJpg(bytes);
+        const page=doc.addPage([width,height]);
+        page.drawImage(img,{x:0,y:0,width,height});
+      }
+      downloadBlobFile("scanned.pdf", new Blob([await doc.save()],{type:"application/pdf"}));
+      statusEl.textContent="Done — "+files.length+" page(s).";
+    }catch(err){ statusEl.textContent="Couldn't build the PDF: "+err.message; }
+    goBtn.disabled=false;
+  };
+}
+
+/* ---- Word to PDF ---- */
+function mountWordToPdf(root){
+  root.innerHTML=`
+  <div class="workspace two-col">
+    <div class="card">
+      <div class="pdf-note"><b>Runs entirely in your browser.</b> Basic formatting (headings, bold, lists) carries over; complex layouts may shift slightly.</div>
+      <div id="dz-host"></div>
+      <div id="w2p-file" class="hint" style="margin-top:10px;"></div>
+      <div class="btn-row no-print" id="w2p-actions" style="display:none;"><button class="btn" id="w2p-print">Print / Save as PDF</button></div>
+      <div id="w2p-status" class="hint"></div>
+    </div>
+    <div class="card"><h3>Preview</h3><div id="print-area"><div id="w2p-doc" class="doc-wrap"><div class="doc-empty">Upload a .docx file to see the preview.</div></div></div></div>
+  </div>`;
+  mountDropzone(document.getElementById("dz-host"),{accept:".docx",label:"Click to choose a .docx file",onFiles:async(fs)=>{
+    const file=fs[0];
+    document.getElementById("w2p-file").textContent=file.name;
+    document.getElementById("w2p-status").textContent="Converting...";
+    try{
+      const bytes=await readFileArrayBuffer(file);
+      const result=await mammoth.convertToHtml({arrayBuffer:bytes});
+      document.getElementById("w2p-doc").innerHTML=`<div style="font-size:14px;line-height:1.6;">${result.value}</div>`;
+      document.getElementById("w2p-actions").style.display="flex";
+      document.getElementById("w2p-status").textContent = result.messages.length ? "Converted (some formatting may have been simplified)." : "Converted.";
+    }catch(err){ document.getElementById("w2p-status").textContent="Couldn't read this file: "+err.message; }
+  }});
+  document.getElementById("w2p-print").onclick=()=>window.print();
+}
+
+/* ---- Excel to PDF ---- */
+function mountExcelToPdf(root){
+  let workbook=null;
+  root.innerHTML=`
+  <div class="workspace two-col">
+    <div class="card">
+      <div class="pdf-note"><b>Runs entirely in your browser.</b> Each sheet becomes a table; charts and cell formatting aren't carried over.</div>
+      <div id="dz-host"></div>
+      <div id="e2p-file" class="hint" style="margin-top:10px;"></div>
+      <div class="field" id="e2p-sheet-field" style="display:none;"><label>Sheet</label><select id="e2p-sheet"></select></div>
+      <div class="btn-row no-print" id="e2p-actions" style="display:none;"><button class="btn" id="e2p-print">Print / Save as PDF</button></div>
+      <div id="e2p-status" class="hint"></div>
+    </div>
+    <div class="card"><h3>Preview</h3><div id="print-area"><div id="e2p-doc" class="doc-wrap"><div class="doc-empty">Upload an .xlsx file to see the preview.</div></div></div></div>
+  </div>`;
+  mountDropzone(document.getElementById("dz-host"),{accept:".xlsx,.xls",label:"Click to choose a spreadsheet",onFiles:async(fs)=>{
+    const file=fs[0];
+    document.getElementById("e2p-file").textContent=file.name;
+    try{
+      const bytes=await readFileArrayBuffer(file);
+      workbook=XLSX.read(bytes,{type:"array"});
+      const sel=document.getElementById("e2p-sheet");
+      sel.innerHTML=workbook.SheetNames.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("");
+      document.getElementById("e2p-sheet-field").style.display="block";
+      document.getElementById("e2p-actions").style.display="flex";
+      renderSheet();
+      document.getElementById("e2p-status").textContent="Converted.";
+    }catch(err){ document.getElementById("e2p-status").textContent="Couldn't read this file: "+err.message; }
+  }});
+  document.getElementById("e2p-sheet").onchange=renderSheet;
+  function renderSheet(){
+    if(!workbook) return;
+    const name=document.getElementById("e2p-sheet").value || workbook.SheetNames[0];
+    const html=XLSX.utils.sheet_to_html(workbook.Sheets[name], {id:"e2p-table"});
+    const doc=document.getElementById("e2p-doc");
+    doc.innerHTML=`<h3 style="margin-bottom:10px;">${esc(name)}</h3><div class="table-scroll">${html}</div>`;
+    const t=doc.querySelector("table");
+    if(t){ t.style.borderCollapse="collapse"; t.style.width="100%"; t.querySelectorAll("td,th").forEach(c=>{c.style.border="1px solid var(--paper-line)"; c.style.padding="5px 8px"; c.style.fontSize="12px";}); }
+  }
+  document.getElementById("e2p-print").onclick=()=>window.print();
+}
+
+const PDF_TOOL_HANDLERS = {
+  "pdf-merge":{desc:"Combine two or more PDFs into one, in whatever order you like.", mount:mountPdfMerge},
+  "pdf-split":{desc:"Pull pages out of a PDF — split into individual pages or custom ranges.", mount:mountPdfSplit},
+  "pdf-compress":{desc:"Shrink a PDF's file size by re-rendering pages as compressed images.", mount:mountPdfCompress},
+  "word-to-pdf":{desc:"Convert a Word (.docx) document to a printable PDF.", mount:mountWordToPdf},
+  "excel-to-pdf":{desc:"Convert an Excel spreadsheet to a printable PDF.", mount:mountExcelToPdf},
+  "pdf-to-jpg":{desc:"Turn every page of a PDF into a JPG image.", mount:mountPdfToJpg},
+  "jpg-to-pdf":{desc:"Combine JPG or PNG images into a single PDF.", mount:mountJpgToPdf},
+  "pdf-sign":{desc:"Draw a signature and stamp it onto a page of your PDF.", mount:mountPdfSign},
+  "pdf-watermark":{desc:"Stamp text diagonally across every page.", mount:mountPdfWatermark},
+  "pdf-rotate":{desc:"Rotate every page of a PDF by 90°, 180° or 270°.", mount:mountPdfRotate},
+  "html-to-pdf":{desc:"Turn pasted text or HTML content into a printable PDF.", mount:mountHtmlToPdf},
+  "pdf-organize":{desc:"Reorder or delete pages, then save a new PDF.", mount:mountPdfOrganize},
+  "pdf-page-numbers":{desc:"Stamp page numbers onto every page.", mount:mountPdfPageNumbers},
+  "scan-to-pdf":{desc:"Capture photos with your camera and combine them into a PDF.", mount:mountScanToPdf}
+};
+
+/* ============================= INIT ============================= */
+render();
+</script>
+</body>
+</html>
