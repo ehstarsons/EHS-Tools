@@ -1352,10 +1352,10 @@ function topbarHTML(){
   return `
   <div class="topbar">
     <div class="brand" id="go-home">
-      <div class="brand-mark">FS</div>
+      <div class="brand-mark">ET</div>
       <div>
-        <div class="brand-name">FACTORY SAFETY TOOLKIT</div>
-        <div class="brand-sub">Free EHS tools for Indian factories</div>
+        <div class="brand-name">EHS TOOLBOX</div>
+        <div class="brand-sub">Everything you need for EHS, just a click away</div>
       </div>
     </div>
     <div class="menu-wrap" id="menu-wrap">
@@ -1379,8 +1379,9 @@ function pageHome(){
   return `
   ${topbarHTML()}
   <section class="hero">
-    <h1>Run a safer plant,<br>one tool at a time.</h1>
-    <p class="lead">Calculators, checklists, planners and document generators for fire, workplace and environmental safety — built for Indian factory compliance. No login, no cost.</p>
+    <h1>Everything you need for EHS, just a click away.</h1>
+    <h2>Every tool you need to work with EHS in one place</h2>
+    <p class="lead">Create professional documents. Simplify safety calculations. Organize your paperwork. Get printable results. PDF management—all without paying for expensive software.</p>
     <div class="gauge-row">
       <div class="gauge"><b>${TOTAL_TOOL_COUNT}</b><span>tools live</span></div>
       <div class="gauge"><b>${CATEGORIES.length}</b><span>categories covered</span></div>
@@ -1395,8 +1396,11 @@ function pageHome(){
   </div>
 
   <footer>
-    <span>Factory Safety Toolkit — built for plant EHS teams in India.</span>
-    <span>Reference tools only — verify against IS/NBC codes, the Factories Act and your local Fire &amp; Pollution Control authority before compliance use.</span>
+    <span>Factory Safety Toolkit provides practical EHS reference tools for Indian workplaces.</span>
+    <span>These tools do not constitute legal, regulatory or professional advice. Always verify calculations, requirements and outputs against the latest applicable standards, legislation, codes and instructions issued by competent authorities before relying on them for compliance, safety or operational decisions.</span>
+    <span>© 2026 Sayan Saha. All Rights Reserved.
+This software, including its source code, design, documentation and original content, is protected by applicable intellectual property laws.
+Unauthorized copying, modification, distribution or commercial use is prohibited.</span>
   </footer>
   `;
 }
