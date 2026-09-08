@@ -265,8 +265,8 @@ button{font-family:inherit;cursor:pointer;}
 .chain span.arrow{padding:0 8px;color:var(--line);}
 .roadmap p{color:var(--text-dim);font-size:14px;margin-top:16px;max-width:640px;}
 
-footer{margin-top:14px;padding-top:10px;border-top:1px solid var(--line);color:var(--text-dim);font-size:8px;text-align:center;}
-footer p{margin:8;line-height:1.5;}
+footer{margin-top:12px;padding-top:8px;border-top:1px solid var(--line);color:var(--text-dim);font-size:8px;text-align:center;}
+footer p{margin:20;line-height:1.7;}
 
 /* ---------- breadcrumb / tool workspace ---------- */
 .crumbs{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-dim);margin:28px 0 6px;}
@@ -1793,7 +1793,7 @@ function footerHTML(){
   return `
   <footer>
     <p>© 2026 Sayan Saha. All Rights Reserved.<br>
-    Unauthorised copying, modification, distribution or commercial use is prohibited.</p>
+    Unauthorised copying, modification or distribution is strictly prohibited.</p>
   </footer>`;
 }
 
@@ -1805,12 +1805,6 @@ function pageHome(){
     <h1>Everything you need for EHS, just a click away 👇</h1>
     <h2>Every tool you need to work with EHS in one place</h2>
     <p class="lead">Create professional documents. Simplify safety calculations. Organize your paperwork. Get printable results. PDF management—all without paying for expensive software.</p>
-    <div class="gauge-row">
-      <div class="gauge"><b>${TOTAL_TOOL_COUNT}</b><span>tools live</span></div>
-      <div class="gauge"><b>${CATEGORIES.length}</b><span>categories covered</span></div>
-      <div class="gauge"><b>₹0</b><span>cost to use</span></div>
-      <div class="gauge"><b>PDF</b><span>printable output</span></div>
-    </div>
   </section>
 
   <div class="section-label">Browse by category</div>
@@ -1818,9 +1812,16 @@ function pageHome(){
     ${CATEGORIES.map(catHTML).join("")}
   </div>
 
+  <div class="gauge-row">
+    <div class="gauge"><b>${TOTAL_TOOL_COUNT}</b><span>tools live</span></div>
+    <div class="gauge"><b>${CATEGORIES.length}</b><span>categories covered</span></div>
+    <div class="gauge"><b>₹0</b><span>cost to use</span></div>
+    <div class="gauge"><b>PDF</b><span>printable output</span></div>
+  </div>
+
   <div class="notice-box">
     <span class="notice-icon">⚠</span>
-    <p>EHS Toolbox provides practical EHS reference tools. Always verify outputs against the latest applicable laws, standards, codes and competent-authority requirements before use.</p>
+    <p>EHS Toolbox provides practical EHS reference tools for Indian workplaces. These tools do not constitute legal, regulatory or professional advice. Always verify calculations, requirements and outputs against the latest applicable standards, legislation, codes and instructions issued by competent authorities before relying on them for compliance, safety or operational decisions.</p>
   </div>
 
   ${footerHTML()}
