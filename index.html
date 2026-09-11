@@ -4077,20 +4077,22 @@ function mountPptToPdf(root){
   root.innerHTML=`
   <div class="workspace two-col">
     <div class="card">
-      <div class="pdf-note"><b>What this does:</b> reads each slide's text boxes and their position, then redraws them on a PDF page at roughly the same spot. It does not render images, charts, exact fonts or colours — for a pixel-perfect result, use PowerPoint's own "Save as PDF".</div>
+      <div class="pdf-note"><b>What this does:</b> reads each slide's text boxes and pictures and redraws them on a PDF page at roughly the same position and size. Photos (PNG/JPEG/GIF/BMP) are included. Vector graphics/clipart embedded as WMF or EMF, charts, exact fonts and colour styling aren't rendered — for a pixel-perfect result, use PowerPoint's own "Save as PDF".</div>
       <div id="dz-host"></div>
       <div id="ppt2p-file" class="hint" style="margin-top:10px;"></div>
       <div class="btn-row"><button class="btn" id="ppt2p-go" disabled>Convert &amp; Download</button></div>
+      <div class="progress-line" id="ppt2p-progress" style="display:none;"><div class="fill" id="ppt2p-fill"></div></div>
       <div id="ppt2p-status" class="hint"></div>
     </div>
-    <div class="card"><h3>How it works</h3><p class="hint">Each slide becomes one PDF page, sized to match the presentation's slide dimensions.</p></div>
+    <div class="card"><h3>How it works</h3><p class="hint">Each slide becomes one PDF page, sized to match the presentation's slide dimensions. Text and pictures are placed in the same order they appear in the slide, so overlapping content still stacks the same way.</p></div>
   </div>`;
   mountDropzone(document.getElementById("dz-host"),{accept:".pptx",label:"Click to choose a .pptx file",onFiles:(fs)=>{
     file=fs[0]; document.getElementById("ppt2p-file").textContent=file.name; document.getElementById("ppt2p-go").disabled=false;
   }});
   document.getElementById("ppt2p-go").onclick=async()=>{
     const statusEl=document.getElementById("ppt2p-status"); const goBtn=document.getElementById("ppt2p-go");
-    goBtn.disabled=true; statusEl.textContent="Reading slides...";
+    const prog=document.getElementById("ppt2p-progress"); const fill=document.getElementById("ppt2p-fill");
+    goBtn.disabled=true; statusEl.textContent="Reading slides..."; prog.style.display="block"; fill.style.width="0%";
     try{
       const bytes=await readFileArrayBuffer(file);
       const zip=await JSZip.loadAsync(bytes);
@@ -4105,34 +4107,148 @@ function mountPptToPdf(root){
       const {PDFDocument,rgb,StandardFonts}=PDFLib;
       const doc=await PDFDocument.create();
       const font=await doc.embedFont(StandardFonts.Helvetica);
-      for(const name of slideFiles){
+      const imageCache=new Map(); // zip path -> embedded pdf-lib image (shared across slides that reuse the same picture)
+      let skippedImages=0;
+      for(let si=0; si<slideFiles.length; si++){
+        const name=slideFiles[si];
         const xml=await zip.file(name).async("string");
         const sdoc=new DOMParser().parseFromString(xml,"application/xml");
+        const relsPath=name.replace(/^ppt\/slides\/(slide\d+\.xml)$/,"ppt/slides/_rels/$1.rels");
+        const relsFile=zip.file(relsPath);
+        const relsMap=relsFile ? parseRelsXml(await relsFile.async("string")) : {};
         const page=doc.addPage([ptW,ptH]);
-        const shapes=Array.from(sdoc.getElementsByTagName("p:sp"));
-        shapes.forEach(sp=>{
-          const off=sp.getElementsByTagName("a:off")[0];
-          const ext=sp.getElementsByTagName("a:ext")[0];
-          const texts=Array.from(sp.getElementsByTagName("a:t")).map(t=>t.textContent).join(" ");
-          if(!texts.trim()) return;
-          const x = off ? Number(off.getAttribute("x"))/12700 : 40;
-          const yTop = off ? Number(off.getAttribute("y"))/12700 : 40;
-          const boxW = ext ? Number(ext.getAttribute("cx"))/12700 : ptW-80;
-          const size=14;
-          const y = Math.max(10, ptH - yTop - size);
-          const wrapped=wrapTextToWidth(texts, font, size, boxW||200);
-          wrapped.forEach((line,li)=>{
-            const ly=y-(li*size*1.2);
-            if(ly>0) page.drawText(line, {x, y:ly, size, font, color:rgb(0.1,0.1,0.15), maxWidth:boxW||undefined});
-          });
-        });
+        const spTree=sdoc.getElementsByTagName("p:spTree")[0];
+        const topNodes = spTree ? Array.from(spTree.childNodes).filter(n=>n.nodeType===1) : [];
+        for(const node of topNodes){
+          statusEl.textContent=`Rendering slide ${si+1} of ${slideFiles.length}...`;
+          await renderPptNode(node, {page, font, ptH, doc, zip, relsMap, imageCache, rgb, onImageSkipped:()=>skippedImages++});
+        }
+        fill.style.width=Math.round(((si+1)/slideFiles.length)*100)+"%";
       }
       const outBytes=await doc.save();
       downloadBlobFile(file.name.replace(/\.pptx$/i,"")+".pdf", new Blob([outBytes],{type:"application/pdf"}));
-      statusEl.textContent="Done — "+slideFiles.length+" slide(s) converted.";
+      statusEl.textContent = "Done — "+slideFiles.length+" slide(s) converted."
+        + (skippedImages ? ` ${skippedImages} image(s) used an unsupported format (e.g. WMF/EMF) and were skipped.` : "");
     }catch(err){ statusEl.textContent="Couldn't convert this file: "+err.message; }
     goBtn.disabled=false;
   };
+}
+/* Parses a .rels XML part into a plain {relationshipId: target} map. */
+function parseRelsXml(xmlStr){
+  const doc=new DOMParser().parseFromString(xmlStr,"application/xml");
+  const map={};
+  Array.from(doc.getElementsByTagName("Relationship")).forEach(r=>{
+    map[r.getAttribute("Id")] = r.getAttribute("Target");
+  });
+  return map;
+}
+/* Resolves a relative target (e.g. "../media/image1.png") against the directory
+   containing the referencing part (e.g. "ppt/slides"), the way OOXML packages do. */
+function resolveZipRelPath(baseDir, relTarget){
+  if(/^\//.test(relTarget)) return relTarget.replace(/^\//,"");
+  const parts=baseDir.split("/").filter(Boolean).concat(relTarget.split("/"));
+  const resolved=[];
+  parts.forEach(seg=>{
+    if(seg===".") return;
+    if(seg===".."){ resolved.pop(); }
+    else resolved.push(seg);
+  });
+  return resolved.join("/");
+}
+/* Renders one direct child of a slide's <p:spTree> — a text shape (p:sp), a
+   picture (p:pic), or a group (p:grpSp, rendered by recursing into its
+   children using their own absolute offsets) — onto the given PDF page. */
+async function renderPptNode(node, ctx){
+  const tag=node.tagName;
+  if(tag==="p:pic"){
+    await drawPptPic(node, ctx);
+  } else if(tag==="p:sp"){
+    drawPptTextShape(node, ctx);
+  } else if(tag==="p:grpSp" || tag==="p:graphicFrame"){
+    for(const child of Array.from(node.childNodes).filter(n=>n.nodeType===1)){
+      await renderPptNode(child, ctx);
+    }
+  }
+}
+function drawPptTextShape(sp, ctx){
+  const {page, font, ptH, rgb}=ctx;
+  const off=sp.getElementsByTagName("a:off")[0];
+  const ext=sp.getElementsByTagName("a:ext")[0];
+  const texts=Array.from(sp.getElementsByTagName("a:t")).map(t=>t.textContent).join(" ");
+  if(!texts.trim()) return;
+  const x = off ? Number(off.getAttribute("x"))/12700 : 40;
+  const yTop = off ? Number(off.getAttribute("y"))/12700 : 40;
+  const boxW = ext ? Number(ext.getAttribute("cx"))/12700 : page.getWidth()-80;
+  const size=14;
+  const y = Math.max(10, ptH - yTop - size);
+  const wrapped=wrapTextToWidth(texts, font, size, boxW||200);
+  wrapped.forEach((line,li)=>{
+    const ly=y-(li*size*1.2);
+    if(ly>0) page.drawText(line, {x, y:ly, size, font, color:rgb(0.1,0.1,0.15), maxWidth:boxW||undefined});
+  });
+}
+/* Embeds and draws a single <p:pic> picture at its slide position/size. */
+async function drawPptPic(picNode, ctx){
+  const {page, ptH, doc, zip, relsMap, imageCache, onImageSkipped}=ctx;
+  const blip=picNode.getElementsByTagName("a:blip")[0];
+  const rId = blip && (blip.getAttribute("r:embed") || blip.getAttribute("r:link"));
+  if(!rId || !relsMap[rId]) return;
+  const mediaPath=resolveZipRelPath("ppt/slides", relsMap[rId]);
+  let embedded=imageCache.get(mediaPath);
+  if(embedded===undefined){
+    embedded=null;
+    const mediaFile=zip.file(mediaPath);
+    if(mediaFile){
+      try{
+        const raw=await mediaFile.async("uint8array");
+        const ext=(mediaPath.split(".").pop()||"").toLowerCase();
+        if(ext==="png") embedded=await doc.embedPng(raw);
+        else if(ext==="jpg"||ext==="jpeg") embedded=await doc.embedJpg(raw);
+        else if(["gif","bmp","webp"].includes(ext)){
+          const pngBytes=await rasterBytesToPngBytes(raw, ext);
+          if(pngBytes) embedded=await doc.embedPng(pngBytes);
+        }
+        // WMF/EMF and other vector formats can't be decoded by the browser — skipped.
+      }catch(e){ embedded=null; }
+    }
+    imageCache.set(mediaPath, embedded);
+  }
+  if(!embedded){ if(onImageSkipped) onImageSkipped(); return; }
+  const xfrm=picNode.getElementsByTagName("a:xfrm")[0];
+  const off=xfrm && xfrm.getElementsByTagName("a:off")[0];
+  const extEl=xfrm && xfrm.getElementsByTagName("a:ext")[0];
+  if(!off || !extEl) return;
+  const xPt=Number(off.getAttribute("x"))/12700;
+  const yPt=Number(off.getAttribute("y"))/12700;
+  const wPt=Number(extEl.getAttribute("cx"))/12700;
+  const hPt=Number(extEl.getAttribute("cy"))/12700;
+  page.drawImage(embedded, {x:xPt, y: ptH-yPt-hPt, width:wPt, height:hPt});
+}
+/* Decodes a raster image format the browser can display natively (GIF, BMP,
+   WEBP) via a hidden <img>/<canvas> round-trip, returning PNG bytes suitable
+   for pdf-lib's embedPng. Returns null if the browser can't decode it. */
+function rasterBytesToPngBytes(bytes, ext){
+  const mime = ext==="gif" ? "image/gif" : ext==="bmp" ? "image/bmp" : ext==="webp" ? "image/webp" : "";
+  if(!mime) return Promise.resolve(null);
+  return new Promise((resolve)=>{
+    const blob=new Blob([bytes],{type:mime});
+    const url=URL.createObjectURL(blob);
+    const img=new Image();
+    img.onload=()=>{
+      try{
+        const canvas=document.createElement("canvas");
+        canvas.width=img.naturalWidth; canvas.height=img.naturalHeight;
+        canvas.getContext("2d").drawImage(img,0,0);
+        canvas.toBlob(async(pngBlob)=>{
+          URL.revokeObjectURL(url);
+          if(!pngBlob){ resolve(null); return; }
+          resolve(new Uint8Array(await pngBlob.arrayBuffer()));
+        }, "image/png");
+      }catch(e){ URL.revokeObjectURL(url); resolve(null); }
+    };
+    img.onerror=()=>{ URL.revokeObjectURL(url); resolve(null); };
+    img.src=url;
+  });
 }
 function wrapTextToWidth(text, font, size, maxWidth){
   const words=text.split(/\s+/); const lines=[]; let cur="";
@@ -4547,7 +4663,7 @@ const PDF_TOOL_HANDLERS = {
   "pdf-to-word":{desc:"Extract a PDF's text into a real, editable .docx file.", mount:mountPdfToWordConvert},
   "pdf-to-excel":{desc:"Reconstruct simple tables from a PDF into an .xlsx workbook.", mount:mountPdfToExcel},
   "pdf-to-ppt":{desc:"Turn each PDF page into a slide image in a .pptx file.", mount:mountPdfToPpt},
-  "ppt-to-pdf":{desc:"Approximate a PowerPoint's slide text layout as a PDF.", mount:mountPptToPdf},
+  "ppt-to-pdf":{desc:"Approximate a PowerPoint's slide text and photos as a PDF.", mount:mountPptToPdf},
   "pdf-edit":{desc:"Click to add text boxes to a PDF, then save a flattened copy.", mount:mountPdfEdit},
   "pdf-repair":{desc:"Attempt to recover a damaged or corrupted PDF.", mount:mountPdfRepair},
   "pdf-ocr":{desc:"Recognise text in a scanned PDF and make it searchable.", mount:mountPdfOcr},
