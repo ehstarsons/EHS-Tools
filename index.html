@@ -363,6 +363,7 @@ footer p{margin:20;line-height:1.7;}
   z-index:1;
 }
 .doc-wrap h2,.doc-wrap h3,.doc-wrap h4{color:var(--ink);font-family:'Source Serif 4',serif;}
+.doc-page-body{display:block;}
 .doc-head{border-bottom:2px solid var(--ink);padding-bottom:12px;margin-bottom:16px;}
 .doc-head h2{font-size:25px;}
 .doc-meta{font-size:11.5px;color:var(--ink-dim);margin-top:4px;font-family:'IBM Plex Mono',monospace;}
@@ -387,30 +388,31 @@ footer p{margin:20;line-height:1.7;}
 .dc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr));gap:10px;margin-top:8px;}
 .dc-grid .field{margin-bottom:0;}
 
-/* controlled-document identification header (logo / company / doc no / eff date / rev no) */
-.doc-id-box{display:flex;align-items:stretch;border:1.5px solid var(--ink);border-radius:6px;overflow:hidden;margin-bottom:16px;}
-.doc-id-logo{flex:none;width:78px;display:flex;align-items:center;justify-content:center;padding:8px;border-right:1px solid var(--ink);background:#f7f3e8;}
-.doc-logo{max-width:60px;max-height:56px;object-fit:contain;display:block;}
-.doc-logo.placeholder{width:52px;height:52px;border:1px dashed var(--paper-line);display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--ink-dim);font-family:'IBM Plex Mono',monospace;}
-.doc-id-company{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:8px 14px;border-right:1px solid var(--ink);}
-.doc-id-company .company-name{font-family:'Source Serif 4',serif;font-weight:700;font-size:17px;letter-spacing:0;}
-.doc-id-company .doc-title{font-size:12px;margin-top:2px;color:var(--ink-dim);letter-spacing:.01em;}
-.doc-id-meta{flex:none;width:180px;display:flex;flex-direction:column;background:#f7f3e8;}
-.meta-row{flex:1;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 10px;border-bottom:1px solid var(--ink);}
-.meta-row:last-child{border-bottom:none;}
-.meta-row .meta-label{font-size:10.5px;color:var(--ink-dim);font-family:'IBM Plex Mono',monospace;white-space:nowrap;}
-.meta-row .meta-val{font-size:12.5px;font-weight:600;text-align:right;}
+/* controlled-document letterhead (logo / company name+title / doc no,
+   issue date, effective date, rev no, department) — mirrors the
+   organization's Word letterhead template exactly, as a real table so
+   the row-spanning logo/company/title cells line up the same way in
+   screen, print/PDF, and the Word export. */
+.doc-id-table{width:100%;border-collapse:collapse;border:1.5px solid var(--ink);margin-bottom:16px;table-layout:fixed;}
+.doc-id-table td{border:1px solid var(--ink);padding:6px 10px;vertical-align:middle;}
+.doc-id-table .idc-logo{width:15%;text-align:center;background:#f7f3e8;}
+.doc-id-table .idc-company{width:44%;text-align:center;font-family:'Source Serif 4',serif;font-weight:700;font-size:16px;}
+.doc-id-table .idc-title{text-align:center;font-size:12.5px;color:var(--ink-dim);}
+.doc-id-table .idc-label{width:23%;font-size:10px;color:var(--ink-dim);font-family:'IBM Plex Mono',monospace;line-height:1.3;overflow-wrap:break-word;}
+.doc-id-table .idc-val{width:18%;font-size:12px;font-weight:600;}
+.doc-logo{max-width:60px;max-height:56px;object-fit:contain;display:block;margin:0 auto;}
+.doc-logo.placeholder{width:52px;height:52px;border:1px dashed var(--paper-line);display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--ink-dim);font-family:'IBM Plex Mono',monospace;margin:0 auto;}
 
-/* prepared-by / approved-by signature block */
-.sig-table{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:32px;}
-.sig-box{border:1px solid var(--ink);border-radius:6px;padding:12px 14px 14px;}
-.sig-role{font-size:10px;font-family:'IBM Plex Mono',monospace;color:var(--ink-dim);letter-spacing:.04em;}
-.sig-person{font-size:13px;font-weight:600;margin-top:2px;overflow-wrap:break-word;}
-.sig-img-area{min-height:50px;display:flex;align-items:flex-end;justify-content:center;border-bottom:1px solid var(--ink-dim);margin:12px 0 6px;}
-.sig-img-area img.sig-img{max-height:50px;max-width:100%;object-fit:contain;}
-.sig-img-area .sig-line{border-top:1px solid var(--ink);width:85%;margin-bottom:14px;}
-.sig-caption{font-size:9.5px;font-family:'IBM Plex Mono',monospace;color:var(--ink-dim);text-align:center;letter-spacing:.05em;text-transform:uppercase;}
-.sig-date{font-size:11.5px;color:var(--ink-dim);margin-top:8px;}
+/* prepared-by / reviewed-by / approved-by sign-off block — same 3-column,
+   3-row shape (signature / role / date) as the letterhead template. */
+.sig-table{width:100%;border-collapse:collapse;border:1px solid var(--ink);margin-top:32px;table-layout:fixed;}
+.sig-table td{border:1px solid var(--ink);padding:10px 12px;text-align:center;vertical-align:top;}
+.sig-role-row td{font-size:13px;font-weight:600;padding:8px 12px;}
+.sig-date-row td{font-size:11.5px;color:var(--ink-dim);text-align:left;padding:6px 12px;}
+.sig-person{font-size:11.5px;color:var(--ink-dim);margin-top:2px;overflow-wrap:break-word;}
+.sig-img-area{min-height:44px;display:flex;align-items:flex-end;justify-content:center;margin-bottom:4px;}
+.sig-img-area img.sig-img{max-height:44px;max-width:100%;object-fit:contain;}
+.sig-img-area .sig-line{border-top:1px solid var(--ink);width:85%;margin:20px auto 0;}
 
 /* digital signature capture pads inside document control panel */
 .dc-sig-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-top:14px;}
@@ -482,6 +484,7 @@ footer p{margin:20;line-height:1.7;}
 .cert .name{font-family:'Source Serif 4',serif;font-size:clamp(22px,6vw,36px);color:var(--brand-dark);margin:18px 0 6px;border-bottom:1px solid var(--paper-line);display:inline-block;padding-bottom:6px;max-width:100%;}
 .cert .body-line{font-size:14px;margin:4px 0;}
 .cert .cert-meta{display:flex;justify-content:space-between;margin-top:34px;font-size:12px;color:var(--ink-dim);position:relative;z-index:1;}
+.cert .sig-table{position:relative;z-index:1;background:var(--paper);}
 
 /* map maker */
 .map-canvas{
@@ -497,7 +500,7 @@ footer p{margin:20;line-height:1.7;}
 .map-legend li{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--line);}
 
 @media print{
-  @page{margin:10mm 12mm;}
+  @page{size:A4;margin:10mm 12mm;}
   html,body{background:#ffffff!important;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
   body::before{display:none!important;}
   #app{max-width:none!important;padding:0!important;margin:0!important;}
@@ -507,17 +510,28 @@ footer p{margin:20;line-height:1.7;}
   .card>h3{display:none!important;}
   .no-print{display:none!important;}
   #print-area{position:static!important;width:100%;background:#ffffff;}
-  .doc-wrap,.cert{background:#ffffff!important;box-shadow:none!important;border:none!important;margin:0!important;padding:10px 6px!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-  .doc-wrap::after{content:"";display:block;position:absolute;top:0;left:0;right:0;height:4px;background:var(--brand-dark)!important;}
-  .doc-wrap{border-top:4px solid var(--brand-dark)!important;padding-top:14px!important;}
+  .doc-wrap,.cert{background:#ffffff!important;box-shadow:none!important;border:none!important;margin:0!important;padding:6px!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
   .cert{border:5px double var(--brand-dark)!important;}
   .cert::before{border-color:rgba(28,33,48,0.25)!important;}
   .table-scroll{overflow:visible!important;margin-bottom:6px;}
   .doc-table,.rows-table{min-width:0!important;}
-  .doc-id-box,.sig-table,.sig-box{page-break-inside:avoid;}
-  .doc-id-box{margin-bottom:10px!important;}
-  .sig-table{margin-top:18px!important;}
-  .doc-block{margin-bottom:10px!important;}
+  .doc-block{page-break-inside:avoid;margin-bottom:10px!important;}
+
+  /* Footer pinned to the bottom of the page: .doc-wrap/.cert become a
+     flex column stretched to a full A4 page (277mm = 297mm page height
+     minus the 10mm top+bottom @page margins). The header stays at the
+     top, the body flows normally, and the footer's margin-top:auto
+     pushes it down to sit flush with the bottom of the page — plain,
+     well-supported box layout, not a print-pagination trick. */
+  .doc-wrap,.cert{display:flex!important;flex-direction:column;min-height:273mm;}
+  .doc-page-body{flex:none;}
+  .doc-id-table{flex:none;margin-bottom:10px!important;border-top:4px solid var(--brand-dark)!important;page-break-inside:avoid;}
+  .sig-table{
+    flex:none;margin-top:auto!important;margin-bottom:0!important;
+    margin-left:auto;margin-right:auto;width:70%;align-self:center;
+    page-break-inside:avoid;
+  }
+  .sig-table td{page-break-inside:avoid;}
   .doc-table tr,.rows-table tr{page-break-inside:avoid;}
   .doc-table th{background:#f1ece0!important;}
   .doc-table tr:nth-child(even) td{background:#f8f4ea!important;}
@@ -554,7 +568,9 @@ footer p{margin:20;line-height:1.7;}
   .doc-wrap{padding:20px 16px 16px;}
   .field-row{grid-template-columns:1fr;}
   .dc-grid{grid-template-columns:1fr 1fr;}
-  .sig-table{grid-template-columns:1fr;}
+  .sig-table,.sig-table tbody,.sig-table tr,.sig-table td{display:block;width:100%!important;}
+  .sig-table td{border-top:1px solid var(--ink);}
+  .sig-table tr:first-child td:first-child{border-top:none;}
   .cert{padding:30px 18px;}
   .cert::after{width:56px;height:56px;font-size:26px;bottom:16px;right:16px;}
   .field input[type=text],.field input[type=number],.field input[type=date],.field select,.field textarea{font-size:16px;}
@@ -572,12 +588,11 @@ footer p{margin:20;line-height:1.7;}
 }
 @media(max-width:560px){
   .dc-grid{grid-template-columns:1fr;}
-  .doc-id-box{flex-direction:column;}
-  .doc-id-logo{width:100%;border-right:none;border-bottom:1px solid var(--ink);padding:10px;}
-  .doc-id-company{border-right:none;border-bottom:1px solid var(--ink);padding:10px;}
-  .doc-id-meta{width:100%;}
-  .doc-id-company .company-name{font-size:15px;}
-  .doc-id-company .doc-title{font-size:10.5px;}
+  .doc-id-table,.doc-id-table tbody,.doc-id-table tr,.doc-id-table td{display:block;width:100%!important;}
+  .doc-id-table td{border-top:1px solid var(--ink);}
+  .doc-id-table tr:first-child td:first-child{border-top:none;}
+  .idc-company{font-size:15px;}
+  .idc-title{font-size:10.5px;}
 }
 
 </style>
@@ -627,7 +642,10 @@ function download(filename, text){
 let ORG = {companyName:"", logo:null}; // shared across tools for the session
 
 function newDocMeta(){
-  return {docNo:"",effDate:"",revNo:"01",prepName:"",prepDesig:"",prepDate:"",prepSig:"",apprName:"",apprDesig:"",apprDate:"",apprSig:""};
+  return {docNo:"",issueDate:"",effDate:"",revNo:"01",
+    prepName:"",prepDesig:"",prepDate:"",prepSig:"",
+    revwName:"",revwDesig:"",revwDate:"",revwSig:"",
+    apprName:"",apprDesig:"",apprDate:"",apprSig:""};
 }
 function formatDMY(iso){
   if(!iso) return "";
@@ -644,6 +662,7 @@ function docControlHTML(meta){
       <div class="field"><label>Company name</label><input type="text" data-dc="companyName" value="${esc(ORG.companyName)}" placeholder="Your Company Ltd."></div>
       <div class="field"><label>Company logo</label><input type="file" accept="image/*" data-dc="logo"></div>
       <div class="field"><label>Document No.</label><input type="text" data-dc="docNo" value="${esc(meta.docNo)}" placeholder="e.g. ESF-EHS-06"></div>
+      <div class="field"><label>Issue date</label><input type="date" data-dc="issueDate" value="${esc(meta.issueDate)}"></div>
       <div class="field"><label>Effective date</label><input type="date" data-dc="effDate" value="${esc(meta.effDate)}"></div>
       <div class="field"><label>Revision No.</label><input type="text" data-dc="revNo" value="${esc(meta.revNo)}" placeholder="e.g. 01"></div>
     </div>
@@ -651,32 +670,49 @@ function docControlHTML(meta){
       <div class="field"><label>Prepared by — name</label><input type="text" data-dc="prepName" value="${esc(meta.prepName)}"></div>
       <div class="field"><label>Prepared by — designation</label><input type="text" data-dc="prepDesig" value="${esc(meta.prepDesig)}" placeholder="e.g. Sr. Officer - EHS"></div>
       <div class="field"><label>Prepared date</label><input type="date" data-dc="prepDate" value="${esc(meta.prepDate)}"></div>
+      <div class="field"><label>Reviewed by — name</label><input type="text" data-dc="revwName" value="${esc(meta.revwName)}"></div>
+      <div class="field"><label>Reviewed by — designation</label><input type="text" data-dc="revwDesig" value="${esc(meta.revwDesig)}" placeholder="e.g. QA Manager"></div>
+      <div class="field"><label>Reviewed date</label><input type="date" data-dc="revwDate" value="${esc(meta.revwDate)}"></div>
       <div class="field"><label>Approved by — name</label><input type="text" data-dc="apprName" value="${esc(meta.apprName)}"></div>
       <div class="field"><label>Approved by — designation</label><input type="text" data-dc="apprDesig" value="${esc(meta.apprDesig)}" placeholder="e.g. Sr. Manager - QA"></div>
       <div class="field"><label>Approved date</label><input type="date" data-dc="apprDate" value="${esc(meta.apprDate)}"></div>
     </div>
     <div class="dc-sig-grid">
       <div class="field">
-        <label>Prepared by — digital signature (draw with mouse or finger)</label>
+        <label>Prepared by — digital signature (draw, or upload a signature image)</label>
         <div class="sig-pad-wrap"><canvas id="dc-sig-prep" width="500" height="140"></canvas></div>
-        <div class="btn-row"><button class="btn secondary small" type="button" data-sigclear="prep">Clear signature</button></div>
+        <div class="btn-row">
+          <button class="btn secondary small" type="button" data-sigclear="prep">Clear signature</button>
+          <label class="btn secondary small" style="cursor:pointer;margin:0;">Upload signature image<input type="file" accept="image/*" data-sigupload="prep" style="display:none;"></label>
+        </div>
       </div>
       <div class="field">
-        <label>Approved by — digital signature (draw with mouse or finger)</label>
+        <label>Reviewed by — digital signature (draw, or upload a signature image)</label>
+        <div class="sig-pad-wrap"><canvas id="dc-sig-revw" width="500" height="140"></canvas></div>
+        <div class="btn-row">
+          <button class="btn secondary small" type="button" data-sigclear="revw">Clear signature</button>
+          <label class="btn secondary small" style="cursor:pointer;margin:0;">Upload signature image<input type="file" accept="image/*" data-sigupload="revw" style="display:none;"></label>
+        </div>
+      </div>
+      <div class="field">
+        <label>Approved by — digital signature (draw, or upload a signature image)</label>
         <div class="sig-pad-wrap"><canvas id="dc-sig-appr" width="500" height="140"></canvas></div>
-        <div class="btn-row"><button class="btn secondary small" type="button" data-sigclear="appr">Clear signature</button></div>
+        <div class="btn-row">
+          <button class="btn secondary small" type="button" data-sigclear="appr">Clear signature</button>
+          <label class="btn secondary small" style="cursor:pointer;margin:0;">Upload signature image<input type="file" accept="image/*" data-sigupload="appr" style="display:none;"></label>
+        </div>
       </div>
     </div>
   </details>`;
 }
 function wireSignaturePads(root, meta, onChange){
-  ["prep","appr"].forEach(who=>{
+  ["prep","revw","appr"].forEach(who=>{
     const canvas=root.querySelector("#dc-sig-"+who);
     if(!canvas || canvas.dataset.wired) return;
     canvas.dataset.wired="1";
     const ctx=canvas.getContext("2d");
     ctx.lineWidth=2.4; ctx.lineCap="round"; ctx.strokeStyle="#1a2233";
-    const sigKey = who==="prep" ? "prepSig" : "apprSig";
+    const sigKey = who==="prep" ? "prepSig" : who==="revw" ? "revwSig" : "apprSig";
     let drawing=false, hasStroke=false;
     if(meta[sigKey]){
       const img=new Image();
@@ -696,6 +732,32 @@ function wireSignaturePads(root, meta, onChange){
     canvas.addEventListener("touchstart",start,{passive:false}); canvas.addEventListener("touchmove",move,{passive:false}); canvas.addEventListener("touchend",end);
     const clearBtn=root.querySelector(`[data-sigclear="${who}"]`);
     if(clearBtn) clearBtn.onclick=()=>{ ctx.clearRect(0,0,canvas.width,canvas.height); hasStroke=false; meta[sigKey]=""; onChange(); };
+    const uploadInp=root.querySelector(`[data-sigupload="${who}"]`);
+    if(uploadInp) uploadInp.onchange=()=>{
+      const file=uploadInp.files && uploadInp.files[0];
+      if(!file) return;
+      const reader=new FileReader();
+      reader.onload=()=>{
+        const img=new Image();
+        img.onload=()=>{
+          // Fit the uploaded image into the pad without distorting it: scale to
+          // fit within the canvas, centre it, and bake the result onto a plain
+          // white background so it prints the same as a drawn signature.
+          ctx.clearRect(0,0,canvas.width,canvas.height);
+          ctx.fillStyle="#ffffff"; ctx.fillRect(0,0,canvas.width,canvas.height);
+          const scale=Math.min(canvas.width/img.width, canvas.height/img.height);
+          const w=img.width*scale, h=img.height*scale;
+          ctx.drawImage(img, (canvas.width-w)/2, (canvas.height-h)/2, w, h);
+          hasStroke=true;
+          meta[sigKey]=canvas.toDataURL("image/png");
+          onChange();
+        };
+        img.onerror=()=>{ alert("Couldn't read that image — please try a JPG or PNG file."); };
+        img.src=reader.result;
+      };
+      reader.readAsDataURL(file);
+      uploadInp.value="";
+    };
   });
 }
 function wireDocControl(root, meta, onChange){
@@ -716,45 +778,177 @@ function wireDocControl(root, meta, onChange){
     }
   });
 }
+/* Controlled-document letterhead + sign-off block. This single template
+   (logo | company/title | 4-row meta table on top: Document No., Issue
+   date, Effective date, Revision No.; 3-column Prepared/Reviewed/Approved
+   sign-off table at the bottom) is shared by every tool's on-screen/print
+   view (docHeaderHTML/docSignatureHTML, plain CSS classes) and its Word
+   export (wordHeaderHTML/wordSignatureHTML, inline styles for MSO). Both
+   build the identical rows from the same meta fields, so the PDF (browser
+   print) and the .doc download always match. */
 function docHeaderHTML(title, meta){
   const logoHTML = ORG.logo ? `<img src="${ORG.logo}" class="doc-logo">` : `<div class="doc-logo placeholder">LOGO</div>`;
   return `
-  <div class="doc-id-box">
-    <div class="doc-id-logo">${logoHTML}</div>
-    <div class="doc-id-company">
-      <div class="company-name">${esc(ORG.companyName||"Your Company Name")}</div>
-      <div class="doc-title">${esc(title)}</div>
-    </div>
-    <div class="doc-id-meta">
-      <div class="meta-row"><span class="meta-label">Document No.</span><span class="meta-val">${esc(meta.docNo||"—")}</span></div>
-      <div class="meta-row"><span class="meta-label">Effective Date</span><span class="meta-val">${esc(meta.effDate||"—")}</span></div>
-      <div class="meta-row"><span class="meta-label">Revision No.</span><span class="meta-val">${esc(meta.revNo||"—")}</span></div>
-    </div>
-  </div>`;
+  <table class="doc-id-table">
+    <tr>
+      <td class="idc-logo" rowspan="4">${logoHTML}</td>
+      <td class="idc-company" rowspan="2">${esc(ORG.companyName||"Your Company Name")}</td>
+      <td class="idc-label">Document No.</td>
+      <td class="idc-val">${esc(meta.docNo||"—")}</td>
+    </tr>
+    <tr><td class="idc-label">Issue Date</td><td class="idc-val">${meta.issueDate?esc(formatDMY(meta.issueDate)):"—"}</td></tr>
+    <tr>
+      <td class="idc-title" rowspan="2">${esc(title)}</td>
+      <td class="idc-label">Effective Date</td>
+      <td class="idc-val">${meta.effDate?esc(formatDMY(meta.effDate)):"—"}</td>
+    </tr>
+    <tr><td class="idc-label">Revision No.</td><td class="idc-val">${esc(meta.revNo||"—")}</td></tr>
+  </table>`;
 }
 function docSignatureHTML(meta){
-  const prepSigInner = meta.prepSig
-    ? `<img class="sig-img" src="${meta.prepSig}" alt="Prepared by signature">`
-    : `<div class="sig-line"></div>`;
-  const apprSigInner = meta.apprSig
-    ? `<img class="sig-img" src="${meta.apprSig}" alt="Approved by signature">`
-    : `<div class="sig-line"></div>`;
+  const sigArea=(sig,name,desig)=>{
+    const img = sig ? `<img class="sig-img" src="${sig}">` : `<div class="sig-line"></div>`;
+    const person = (name||desig) ? `<div class="sig-person">${esc(name||"—")}${desig?" · "+esc(desig):""}</div>` : "";
+    return `<div class="sig-img-area">${img}</div>${person}`;
+  };
   return `
-  <div class="sig-table">
-    <div class="sig-box">
-      <div class="sig-person">Prepared by: ${esc(meta.prepName||"—")}${meta.prepDesig?" · "+esc(meta.prepDesig):""}</div>
-      <div class="sig-img-area">${prepSigInner}</div>
-      <div class="sig-caption">Digital Signature</div>
-      <div class="sig-date">Date: ${meta.prepDate?esc(formatDMY(meta.prepDate)):"—"}</div>
-    </div>
-    <div class="sig-box">
-      <div class="sig-person">Approved by: ${esc(meta.apprName||"—")}${meta.apprDesig?" · "+esc(meta.apprDesig):""}</div>
-      <div class="sig-img-area">${apprSigInner}</div>
-      <div class="sig-caption">Digital Signature</div>
-      <div class="sig-date">Date: ${meta.apprDate?esc(formatDMY(meta.apprDate)):"—"}</div>
-    </div>
-  </div>`;
+  <table class="sig-table">
+    <tr>
+      <td>${sigArea(meta.prepSig,meta.prepName,meta.prepDesig)}</td>
+      <td>${sigArea(meta.revwSig,meta.revwName,meta.revwDesig)}</td>
+      <td>${sigArea(meta.apprSig,meta.apprName,meta.apprDesig)}</td>
+    </tr>
+    <tr class="sig-role-row"><td>Prepared by</td><td>Reviewed by</td><td>Approved by</td></tr>
+    <tr class="sig-date-row">
+      <td>Date: ${meta.prepDate?esc(formatDMY(meta.prepDate)):"—"}</td>
+      <td>Date: ${meta.revwDate?esc(formatDMY(meta.revwDate)):"—"}</td>
+      <td>Date: ${meta.apprDate?esc(formatDMY(meta.apprDate)):"—"}</td>
+    </tr>
+  </table>`;
 }
+/* Wraps header/body/footer as a simple flex column (see .doc-wrap/.cert
+   print CSS): header on top, footer pushed to the very bottom of the page
+   via margin-top:auto. This is a plain, well-supported layout technique
+   (not a print-pagination trick), so it renders the same predictable way
+   in every browser's print/PDF output. */
+function docPageWrap(headerHTML, bodyHTML, footerHTML){
+  return `${headerHTML}<div class="doc-page-body">${bodyHTML}</div>${footerHTML}`;
+}
+
+/* ====================== WORD (.doc) EXPORT ======================
+   Word doesn't understand flexbox/grid, so the header/footer use plain
+   HTML tables instead (Word's native, well-supported layout primitive).
+   They're placed inside Word's own mso-element:header/footer divs, which
+   is the mechanism Word uses for a genuinely repeating header/footer on
+   every page — driven by Word's own page layout, not browser print CSS. */
+function wordHeaderHTML(title, meta){
+  const logoCell = ORG.logo
+    ? `<img src="${ORG.logo}" style="max-height:46px;max-width:90px;">`
+    : `<span style="font-size:8pt;color:#888;">LOGO</span>`;
+  const cell="border:1pt solid #1c2130;padding:5pt 8pt;font-size:9pt;";
+  return `
+  <table style="width:100%;border-collapse:collapse;border:1.5pt solid #1c2130;" cellpadding="0" cellspacing="0">
+    <tr>
+      <td rowspan="4" style="${cell}width:15%;text-align:center;vertical-align:middle;background:#f7f3e8;">${logoCell}</td>
+      <td rowspan="2" style="${cell}width:44%;text-align:center;vertical-align:middle;font-weight:bold;font-size:13pt;font-family:Georgia,'Times New Roman',serif;">${esc(ORG.companyName||"Your Company Name")}</td>
+      <td style="${cell}width:23%;color:#666;">Document No.</td>
+      <td style="${cell}width:18%;">${esc(meta.docNo||"—")}</td>
+    </tr>
+    <tr><td style="${cell}color:#666;">Issue Date</td><td style="${cell}">${meta.issueDate?esc(formatDMY(meta.issueDate)):"—"}</td></tr>
+    <tr>
+      <td rowspan="2" style="${cell}text-align:center;vertical-align:middle;font-size:9.5pt;color:#555;">${esc(title)}</td>
+      <td style="${cell}color:#666;">Effective Date</td>
+      <td style="${cell}">${meta.effDate?esc(formatDMY(meta.effDate)):"—"}</td>
+    </tr>
+    <tr><td style="${cell}color:#666;">Revision No.</td><td style="${cell}">${esc(meta.revNo||"—")}</td></tr>
+  </table>`;
+}
+function wordSignatureHTML(meta){
+  const sigCell=(sig,name,desig)=>{
+    const img = sig
+      ? `<img src="${sig}" style="max-height:40px;max-width:95%;">`
+      : `<div style="border-top:1pt solid #999;width:85%;margin:20pt auto 0;">&nbsp;</div>`;
+    const person = (name||desig) ? `<div style="font-size:8pt;color:#666;margin-top:4pt;">${esc(name||"—")}${desig?" · "+esc(desig):""}</div>` : "";
+    return `<div style="text-align:center;min-height:40px;">${img}</div>${person}`;
+  };
+  const cell="border:1pt solid #1c2130;padding:8pt;vertical-align:top;width:33.33%;";
+  const roleCell="border:1pt solid #1c2130;padding:6pt;text-align:center;font-weight:bold;font-size:9pt;";
+  const dateCell="border:1pt solid #1c2130;padding:6pt;color:#666;font-size:8.5pt;";
+  return `
+  <table style="width:100%;border-collapse:collapse;border:1pt solid #1c2130;font-size:9pt;" cellpadding="0" cellspacing="0">
+    <tr>
+      <td style="${cell}">${sigCell(meta.prepSig,meta.prepName,meta.prepDesig)}</td>
+      <td style="${cell}">${sigCell(meta.revwSig,meta.revwName,meta.revwDesig)}</td>
+      <td style="${cell}">${sigCell(meta.apprSig,meta.apprName,meta.apprDesig)}</td>
+    </tr>
+    <tr>
+      <td style="${roleCell}">Prepared by</td>
+      <td style="${roleCell}">Reviewed by</td>
+      <td style="${roleCell}">Approved by</td>
+    </tr>
+    <tr>
+      <td style="${dateCell}">Date: ${meta.prepDate?esc(formatDMY(meta.prepDate)):"—"}</td>
+      <td style="${dateCell}">Date: ${meta.revwDate?esc(formatDMY(meta.revwDate)):"—"}</td>
+      <td style="${dateCell}">Date: ${meta.apprDate?esc(formatDMY(meta.apprDate)):"—"}</td>
+    </tr>
+  </table>`;
+}
+/* Assembles a Word-openable .doc file (HTML dressed up with the MSO
+   namespaces Word recognizes). This is not a real .docx/OOXML package,
+   but Word opens it natively via its "Web Page" filter and the content
+   becomes a fully normal, editable Word document once opened — including
+   a real repeating header/footer, since those use Word's own mechanism
+   rather than anything print-CSS-based. */
+function buildWordDoc(title, headerHTML, bodyHTML, footerHTML){
+  return `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta charset="utf-8">
+<meta name="ProgId" content="Word.Document">
+<meta name="Generator" content="Microsoft Word 15">
+<meta name="Originator" content="Microsoft Word 15">
+<title>${esc(title)}</title>
+<!--[if gte mso 9]><xml>
+<w:WordDocument>
+<w:View>Print</w:View>
+<w:Zoom>100</w:Zoom>
+<w:DoNotOptimizeForBrowser/>
+</w:WordDocument>
+</xml><![endif]-->
+<style>
+@page WordSection1{size:210mm 297mm;margin:1.35in 0.6in 2.1in 0.6in;mso-header-margin:0.3in;mso-footer-margin:0.3in;mso-header:h1;mso-footer:f1;}
+div.WordSection1{page:WordSection1;}
+body{font-family:Calibri,Arial,sans-serif;font-size:10.5pt;color:#1c2130;}
+table{border-collapse:collapse;}
+td{font-family:Calibri,Arial,sans-serif;}
+p.MsoHeader,p.MsoFooter{margin:0;font-size:9pt;}
+.doc-block{margin-bottom:10pt;}
+.lbl{font-size:8.5pt;color:#777;letter-spacing:0.5pt;font-weight:bold;margin-bottom:2pt;}
+.txt{font-size:10.5pt;}
+.doc-field{margin-bottom:4pt;}
+table.doc-table,table.rows-table{width:100%;border:1pt solid #ccc;margin:6pt 0;}
+table.doc-table th,table.doc-table td,table.rows-table th,table.rows-table td{border:1pt solid #ccc;padding:5pt 7pt;font-size:9.5pt;text-align:left;}
+table.doc-table th,table.rows-table th{background:#f1ece0;}
+</style>
+</head>
+<body>
+<div class="WordSection1">
+${bodyHTML}
+<div style="mso-element:header" id="h1">${headerHTML}</div>
+<div style="mso-element:footer" id="f1">${footerHTML}</div>
+</div>
+</body>
+</html>`;
+}
+function downloadWordDoc(filename, title, headerHTML, bodyHTML, footerHTML){
+  const html = buildWordDoc(title, headerHTML, bodyHTML, footerHTML);
+  const blob = new Blob(['\ufeff', html], {type:"application/msword"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename.endsWith(".doc") ? filename : filename+".doc";
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url), 2000);
+}
+
 function docMetaText(meta){
   return `Company: ${ORG.companyName||"-"}\nDocument No: ${meta.docNo||"-"}   Effective Date: ${meta.effDate||"-"}   Revision No: ${meta.revNo||"-"}\n`;
 }
@@ -2033,6 +2227,7 @@ function mountChecklist(root,id){
       <div class="score-label" id="cl-score">0 of ${items.length} marked OK</div>
       <div class="btn-row no-print">
         <button class="btn" id="cl-print">Print / Save as PDF</button>
+        <button class="btn secondary" id="cl-word">Download as Word</button>
         <button class="btn secondary" id="cl-download">Download as text</button>
         <button class="btn secondary" id="cl-reset">Reset</button>
       </div>
@@ -2065,14 +2260,23 @@ function mountChecklist(root,id){
     document.getElementById("cl-fill").style.width=pct+"%";
     document.getElementById("cl-fill").style.background = pct>=80?"var(--green)":pct>=50?"var(--yellow)":"var(--red)";
     document.getElementById("cl-score").textContent = `${ok} of ${applicable} applicable items marked OK — ${pct}% compliant`;
-    document.getElementById("cl-doc").innerHTML = docHeaderHTML(TOOL_NAMES[id], meta) + `
+    document.getElementById("cl-doc").innerHTML = docPageWrap(docHeaderHTML(TOOL_NAMES[id], meta), clBodyHTML(), docSignatureHTML(meta));
+  }
+  function clBodyHTML(){
+    const applicable=state.filter(s=>s!=="na").length;
+    const ok=state.filter(s=>s==="ok").length;
+    const pct=applicable?Math.round(ok/applicable*100):0;
+    return `
       <div class="doc-block"><div class="lbl">COMPLIANCE SCORE</div><div class="txt">${pct}% (${ok} of ${applicable} applicable items OK)</div></div>
       <div class="table-scroll"><table class="doc-table"><thead><tr><th>#</th><th>Item</th><th>Status</th></tr></thead><tbody>
       ${items.map((t,i)=>`<tr><td>${i+1}</td><td>${esc(t)}</td><td>${state[i]==="pending"?"—":state[i].toUpperCase()}</td></tr>`).join("")}
-      </tbody></table></div>` + docSignatureHTML(meta);
+      </tbody></table></div>`;
   }
   refresh();
   document.getElementById("cl-print").onclick=()=>window.print();
+  document.getElementById("cl-word").onclick=()=>{
+    downloadWordDoc(id+".doc", TOOL_NAMES[id], wordHeaderHTML(TOOL_NAMES[id], meta), clBodyHTML(), wordSignatureHTML(meta));
+  };
   document.getElementById("cl-reset").onclick=()=>{state.fill("pending"); itemsEl.querySelectorAll("select").forEach(s=>s.value="pending"); refresh();};
   document.getElementById("cl-download").onclick=()=>{
     let out=docMetaText(meta)+`${TOOL_NAMES[id]}\nGenerated ${todayStr()}\n\n`;
@@ -2099,6 +2303,7 @@ function mountGenerator(root,id){
       <div id="gen-form"></div>
       <div class="btn-row no-print">
         <button class="btn" id="gen-print">Print / Save as PDF</button>
+        <button class="btn secondary" id="gen-word">Download as Word</button>
         <button class="btn secondary" id="gen-download">Download as text</button>
       </div>
     </div>
@@ -2199,31 +2404,33 @@ function mountGenerator(root,id){
   const templatePick=document.getElementById("gen-template-pick");
   if(templatePick) templatePick.onchange=(e)=>applyTemplate(e.target.value);
 
-  function buildDocHTML(){
+  function buildBodyHTML(){
     if(cfg.postProcess) cfg.postProcess(data);
-    let html=docHeaderHTML(cfg.docTitle, meta);
+    let body="";
     cfg.fields.forEach(fld=>{
       if(fld.type==="rows"){
         const rows=data[fld.key];
         const hasAny = rows.some(r=>Object.values(r).some(v=>v));
-        html+=`<div class="doc-block"><div class="lbl">${esc(fld.label).toUpperCase()}</div>`;
-        if(!hasAny){ html+=`<div class="txt" style="color:var(--ink-dim)">— none entered —</div></div>`; return; }
-        html+=`<div class="table-scroll"><table class="doc-table"><thead><tr>${fld.cols.map(c=>`<th>${esc(c.label)}</th>`).join("")}${fld.key==="rows"&&data.rows&&data.rows[0]&&"score" in (data.rows[0]||{})?"<th>Risk score</th><th>Level</th>":""}</tr></thead><tbody>`;
+        body+=`<div class="doc-block"><div class="lbl">${esc(fld.label).toUpperCase()}</div>`;
+        if(!hasAny){ body+=`<div class="txt" style="color:var(--ink-dim)">— none entered —</div></div>`; return; }
+        body+=`<div class="table-scroll"><table class="doc-table"><thead><tr>${fld.cols.map(c=>`<th>${esc(c.label)}</th>`).join("")}${fld.key==="rows"&&data.rows&&data.rows[0]&&"score" in (data.rows[0]||{})?"<th>Risk score</th><th>Level</th>":""}</tr></thead><tbody>`;
         rows.forEach(r=>{
-          html+=`<tr>${fld.cols.map(c=>`<td>${esc(r[c.key]||"")}</td>`).join("")}${("score" in r)?`<td>${esc(r.score)}</td><td>${esc(r.level)}</td>`:""}</tr>`;
+          body+=`<tr>${fld.cols.map(c=>`<td>${esc(r[c.key]||"")}</td>`).join("")}${("score" in r)?`<td>${esc(r.score)}</td><td>${esc(r.level)}</td>`:""}</tr>`;
         });
-        html+=`</tbody></table></div></div>`;
+        body+=`</tbody></table></div></div>`;
       } else {
         const v=data[fld.key];
         if(fld.type==="textarea"){
-          html+=`<div class="doc-block"><div class="lbl">${esc(fld.label).toUpperCase()}</div><div class="txt">${v?esc(v):"—"}</div></div>`;
+          body+=`<div class="doc-block"><div class="lbl">${esc(fld.label).toUpperCase()}</div><div class="txt">${v?esc(v):"—"}</div></div>`;
         } else {
-          html+=`<div class="doc-field"><b>${esc(fld.label)}:</b> <span class="val">${v?esc(v):"—"}</span></div>`;
+          body+=`<div class="doc-field"><b>${esc(fld.label)}:</b> <span class="val">${v?esc(v):"—"}</span></div>`;
         }
       }
     });
-    html+=docSignatureHTML(meta);
-    return html;
+    return body;
+  }
+  function buildDocHTML(){
+    return docPageWrap(docHeaderHTML(cfg.docTitle, meta), buildBodyHTML(), docSignatureHTML(meta));
   }
   function toText(){
     if(cfg.postProcess) cfg.postProcess(data);
@@ -2244,6 +2451,9 @@ function mountGenerator(root,id){
   function refresh(){ document.getElementById("gen-doc").innerHTML = buildDocHTML(); }
   refresh();
   document.getElementById("gen-print").onclick=()=>window.print();
+  document.getElementById("gen-word").onclick=()=>{
+    downloadWordDoc(id+".doc", cfg.docTitle, wordHeaderHTML(cfg.docTitle, meta), buildBodyHTML(), wordSignatureHTML(meta));
+  };
   document.getElementById("gen-download").onclick=()=>download(id+".txt",toText());
 }
 
@@ -2260,18 +2470,24 @@ function mountCalcShell(root, id, title, inputsHTML){
     <div class="card">
       <h3>Preview</h3>
       <div id="print-area"><div id="${id}-doc" class="doc-wrap"></div></div>
-      <div class="btn-row no-print"><button class="btn" id="${id}-print">Print / Save as PDF</button></div>
+      <div class="btn-row no-print">
+        <button class="btn" id="${id}-print">Print / Save as PDF</button>
+        <button class="btn secondary" id="${id}-word">Download as Word</button>
+      </div>
     </div>
   </div>
   <div class="card" style="margin-top:16px;">
     ${docControlHTML(meta)}
   </div>`;
   function refresh(){
-    document.getElementById(id+"-doc").innerHTML = docHeaderHTML(title, meta) + getBody() + docSignatureHTML(meta);
+    document.getElementById(id+"-doc").innerHTML = docPageWrap(docHeaderHTML(title, meta), getBody(), docSignatureHTML(meta));
   }
   wireDocControl(root, meta, refresh);
   wireSignaturePads(root, meta, refresh);
   document.getElementById(id+"-print").onclick=()=>window.print();
+  document.getElementById(id+"-word").onclick=()=>{
+    downloadWordDoc(id+".doc", title, wordHeaderHTML(title, meta), getBody(), wordSignatureHTML(meta));
+  };
   refresh();
   return { setBody(fn){ getBody=fn; refresh(); } };
 }
@@ -2521,6 +2737,7 @@ function mountCertificate(root){
       <div class="field"><label>Certificate number</label><input type="text" id="tc-certno"></div>
       <div class="btn-row no-print">
         <button class="btn" id="tc-print">Print / Save as PDF</button>
+        <button class="btn secondary" id="tc-word">Download as Word</button>
       </div>
     </div>
     <div class="card">
@@ -2529,6 +2746,25 @@ function mountCertificate(root){
     </div>
   </div>`;
   const ids=["tc-name","tc-title","tc-date","tc-duration","tc-trainer","tc-certno"];
+  function certWordBody(){
+    const v=vid=>esc(document.getElementById(vid).value);
+    return `
+    <div style="text-align:center;border:3px double #1c2d4a;padding:30pt 24pt;">
+      ${ORG.logo?`<img src="${ORG.logo}" style="max-height:50px;margin-bottom:10pt;">`:""}
+      <div style="letter-spacing:2pt;font-size:10pt;color:#666;text-transform:uppercase;">${esc(ORG.companyName||"FACTORY SAFETY TOOLKIT")}</div>
+      <div style="font-family:Georgia,'Times New Roman',serif;font-size:26pt;margin:14pt 0;">Certificate of Training</div>
+      <div style="font-size:11pt;">This is to certify that</div>
+      <div style="font-size:20pt;font-weight:bold;font-family:Georgia,serif;margin:8pt 0;">${v("tc-name")||"Employee Name"}</div>
+      <div style="font-size:11pt;">has successfully completed training on</div>
+      <div style="font-weight:600;font-size:14pt;margin:6pt 0;">${v("tc-title")||"Training Title"}</div>
+      <div style="font-size:10.5pt;color:#555;">conducted on ${v("tc-date")||"—"} · Duration: ${v("tc-duration")||"—"}</div>
+      <div style="margin-top:14pt;font-size:10pt;">
+        <div>Trainer: ${v("tc-trainer")||"—"}</div>
+        <div>Certificate No: ${v("tc-certno")||"—"}</div>
+      </div>
+      <div style="margin-top:10pt;font-size:8.5pt;color:#888;">Document No: ${esc(meta.docNo||"—")} · Rev: ${esc(meta.revNo||"—")} · Effective: ${esc(meta.effDate||"—")}</div>
+    </div>`;
+  }
   function refresh(){
     const v=id=>esc(document.getElementById(id).value);
     const logoHTML = ORG.logo ? `<img src="${ORG.logo}" style="max-height:50px;margin-bottom:10px;object-fit:contain;">` : "";
@@ -2555,6 +2791,9 @@ function mountCertificate(root){
   ids.forEach(id=>document.getElementById(id).oninput=refresh);
   refresh();
   document.getElementById("tc-print").onclick=()=>window.print();
+  document.getElementById("tc-word").onclick=()=>{
+    downloadWordDoc("certificate.doc", "Certificate of Training", "", certWordBody(), wordSignatureHTML(meta));
+  };
 }
 
 /* ---------- EVACUATION MAP MAKER ---------- */
