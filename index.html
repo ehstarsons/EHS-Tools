@@ -629,10 +629,8 @@ function esc(s){
 }
 /* pdf-lib's built-in standard fonts (Helvetica etc.) only support the WinAnsi codepage —
    any character outside it (Hindi, Bengali, Tamil, Telugu, Arabic, Chinese, Russian, ...)
-   throws and aborts the whole operation. Since embedding full Unicode fonts for every
-   script isn't practical here, swap unsupported characters for "?" so the PDF still
-   builds — degraded for exotic scripts, but no longer a hard crash. Returns whether
-   anything had to be replaced, so callers can surface a note if useful. */
+   throws and aborts the whole operation. This is used as a last-resort fallback (see
+   renderTextToPng below for the real fix) in case canvas rendering itself ever fails. */
 function safeStandardFontText(text){
   let replaced=false;
   const out=Array.from(String(text==null?"":text)).map(ch=>{
@@ -642,6 +640,63 @@ function safeStandardFontText(text){
     return "?";
   }).join("");
   return {text:out, replaced};
+}
+function containsNonWinAnsi(text){
+  return Array.from(String(text==null?"":text)).some(ch=>ch.codePointAt(0)>0xFF);
+}
+function wrapCanvasText(text, ctx, maxWidthPx){
+  if(!maxWidthPx || maxWidthPx<=0) return [text];
+  const words=text.split(/\s+/).filter(Boolean);
+  if(!words.length) return [""];
+  const lines=[]; let cur="";
+  words.forEach(w=>{
+    const test=cur?cur+" "+w:w;
+    if(ctx.measureText(test).width>maxWidthPx && cur){ lines.push(cur); cur=w; }
+    else cur=test;
+  });
+  if(cur) lines.push(cur);
+  return lines;
+}
+/* Renders text to a transparent PNG using the browser's own font + text-shaping engine —
+   correctly handles every script (Devanagari, Bengali, Tamil, Telugu, Gujarati, Arabic,
+   Chinese, Japanese, ...) that pdf-lib's built-in fonts can't render or even encode.
+   Complex scripts need real shaping (conjuncts, reordering, contextual forms) that pdf-lib
+   doesn't do at all, so this delegates to the browser instead of trying to embed a font
+   into the PDF directly. Returns PNG bytes plus the image's size in PDF points, ready for
+   doc.embedPng() + page.drawImage(). */
+async function renderTextToPng(text, opts){
+  opts=opts||{};
+  const scale=opts.scale||4; // supersample so the rasterized text stays crisp at typical page sizes
+  const sizePt=opts.sizePt||14;
+  const fontPx=sizePt*scale;
+  const family=opts.family||"sans-serif";
+  const weight=opts.bold?"bold ":"";
+  const color=opts.color||"#000000";
+  const isRtl=!!opts.rtl;
+  const lineHeightPx=fontPx*1.28;
+  const measure=document.createElement("canvas").getContext("2d");
+  measure.font=`${weight}${fontPx}px ${family}`;
+  const maxWidthPx=opts.maxWidthPt ? opts.maxWidthPt*scale : null;
+  const lines=maxWidthPx ? wrapCanvasText(text, measure, maxWidthPx) : [text];
+  const widths=lines.map(l=>measure.measureText(l).width);
+  const widthPx=Math.max(1, Math.ceil(Math.max(...widths, 1)));
+  const heightPx=Math.max(1, Math.ceil(lineHeightPx*lines.length));
+  const canvas=document.createElement("canvas");
+  canvas.width=widthPx; canvas.height=heightPx;
+  const ctx=canvas.getContext("2d");
+  ctx.font=`${weight}${fontPx}px ${family}`;
+  ctx.fillStyle=color;
+  ctx.textBaseline="alphabetic";
+  ctx.direction=isRtl?"rtl":"ltr";
+  ctx.textAlign=isRtl?"right":"left";
+  lines.forEach((line,i)=>{
+    const x=isRtl?widthPx:0;
+    const y=(i+1)*lineHeightPx-lineHeightPx*0.3;
+    ctx.fillText(line, x, y);
+  });
+  const blob=await new Promise(res=>canvas.toBlob(res,"image/png"));
+  const bytes=new Uint8Array(await blob.arrayBuffer());
+  return {bytes, widthPt:widthPx/scale, heightPt:heightPx/scale, lineCount:lines.length};
 }
 function todayStr(){
   return new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
@@ -3239,20 +3294,37 @@ function mountPdfWatermark(root){
       const {PDFDocument,rgb,degrees,StandardFonts}=PDFLib;
       const bytes=await readFileArrayBuffer(file);
       const doc=await PDFDocument.load(bytes,{ignoreEncryption:true});
-      const font=await doc.embedFont(StandardFonts.HelveticaBold);
-      const {text, replaced}=safeStandardFontText(document.getElementById("wm-text").value||"WATERMARK");
+      const rawText=document.getElementById("wm-text").value||"WATERMARK";
       const size=Number(document.getElementById("wm-size").value||48);
       const opacity=Number(document.getElementById("wm-opacity").value||0.25);
       const rotate=Number(document.getElementById("wm-rotate").value||45);
-      const textWidth=font.widthOfTextAtSize(text,size);
-      doc.getPages().forEach(page=>{
-        const {width,height}=page.getSize();
-        page.drawText(text,{x:width/2-textWidth/2, y:height/2, size, font, color:rgb(0.5,0.5,0.5), opacity, rotate:degrees(rotate)});
-      });
+      if(containsNonWinAnsi(rawText)){
+        try{
+          const rendered=await renderTextToPng(rawText,{sizePt:size,bold:true,color:`rgba(128,128,128,${opacity})`});
+          const img=await doc.embedPng(rendered.bytes);
+          doc.getPages().forEach(page=>{
+            const {width,height}=page.getSize();
+            page.drawImage(img,{x:width/2-rendered.widthPt/2, y:height/2-rendered.heightPt*0.35, width:rendered.widthPt, height:rendered.heightPt, rotate:degrees(rotate)});
+          });
+        }catch(renderErr){
+          const font=await doc.embedFont(StandardFonts.HelveticaBold);
+          const {text}=safeStandardFontText(rawText);
+          const textWidth=font.widthOfTextAtSize(text,size);
+          doc.getPages().forEach(page=>{
+            const {width,height}=page.getSize();
+            page.drawText(text,{x:width/2-textWidth/2, y:height/2, size, font, color:rgb(0.5,0.5,0.5), opacity, rotate:degrees(rotate)});
+          });
+        }
+      } else {
+        const font=await doc.embedFont(StandardFonts.HelveticaBold);
+        const textWidth=font.widthOfTextAtSize(rawText,size);
+        doc.getPages().forEach(page=>{
+          const {width,height}=page.getSize();
+          page.drawText(rawText,{x:width/2-textWidth/2, y:height/2, size, font, color:rgb(0.5,0.5,0.5), opacity, rotate:degrees(rotate)});
+        });
+      }
       downloadBlobFile("watermarked.pdf", new Blob([await doc.save()],{type:"application/pdf"}));
-      statusEl.textContent = replaced
-        ? "Done — note: this tool's font only supports Latin characters, so some characters in your watermark text were replaced with '?'."
-        : "Done.";
+      statusEl.textContent="Done.";
     }catch(err){ statusEl.textContent="Couldn't add watermark: "+err.message; }
     goBtn.disabled=false;
   };
@@ -4142,7 +4214,6 @@ function mountPptToPdf(root){
       const font=await doc.embedFont(StandardFonts.Helvetica);
       const imageCache=new Map(); // zip path -> embedded pdf-lib image (shared across slides that reuse the same picture)
       let skippedImages=0;
-      const textStats={replaced:false};
       for(let si=0; si<slideFiles.length; si++){
         const name=slideFiles[si];
         const xml=await zip.file(name).async("string");
@@ -4155,15 +4226,14 @@ function mountPptToPdf(root){
         const topNodes = spTree ? Array.from(spTree.childNodes).filter(n=>n.nodeType===1) : [];
         for(const node of topNodes){
           statusEl.textContent=`Rendering slide ${si+1} of ${slideFiles.length}...`;
-          await renderPptNode(node, {page, font, ptH, doc, zip, relsMap, imageCache, rgb, onImageSkipped:()=>skippedImages++, textStats});
+          await renderPptNode(node, {page, font, ptH, doc, zip, relsMap, imageCache, rgb, onImageSkipped:()=>skippedImages++});
         }
         fill.style.width=Math.round(((si+1)/slideFiles.length)*100)+"%";
       }
       const outBytes=await doc.save();
       downloadBlobFile(file.name.replace(/\.pptx$/i,"")+".pdf", new Blob([outBytes],{type:"application/pdf"}));
       statusEl.textContent = "Done — "+slideFiles.length+" slide(s) converted."
-        + (skippedImages ? ` ${skippedImages} image(s) used an unsupported format (e.g. WMF/EMF) and were skipped.` : "")
-        + (textStats.replaced ? " Note: this tool's font only supports Latin characters, so some text characters were replaced with '?'." : "");
+        + (skippedImages ? ` ${skippedImages} image(s) used an unsupported format (e.g. WMF/EMF) and were skipped.` : "");
     }catch(err){ statusEl.textContent="Couldn't convert this file: "+err.message; }
     goBtn.disabled=false;
   };
@@ -4198,25 +4268,33 @@ async function renderPptNode(node, ctx){
   if(tag==="p:pic"){
     await drawPptPic(node, ctx);
   } else if(tag==="p:sp"){
-    drawPptTextShape(node, ctx);
+    await drawPptTextShape(node, ctx);
   } else if(tag==="p:grpSp" || tag==="p:graphicFrame"){
     for(const child of Array.from(node.childNodes).filter(n=>n.nodeType===1)){
       await renderPptNode(child, ctx);
     }
   }
 }
-function drawPptTextShape(sp, ctx){
-  const {page, font, ptH, rgb, textStats}=ctx;
+async function drawPptTextShape(sp, ctx){
+  const {page, font, ptH, rgb, doc}=ctx;
   const off=sp.getElementsByTagName("a:off")[0];
   const ext=sp.getElementsByTagName("a:ext")[0];
   const rawTexts=Array.from(sp.getElementsByTagName("a:t")).map(t=>t.textContent).join(" ");
   if(!rawTexts.trim()) return;
-  const {text:texts, replaced}=safeStandardFontText(rawTexts);
-  if(replaced && textStats) textStats.replaced=true;
   const x = off ? Number(off.getAttribute("x"))/12700 : 40;
   const yTop = off ? Number(off.getAttribute("y"))/12700 : 40;
   const boxW = ext ? Number(ext.getAttribute("cx"))/12700 : page.getWidth()-80;
   const size=14;
+  if(containsNonWinAnsi(rawTexts)){
+    try{
+      const rendered=await renderTextToPng(rawTexts,{sizePt:size, color:"#1a1a26", maxWidthPt:boxW||200});
+      const img=await doc.embedPng(rendered.bytes);
+      const y=Math.max(10, ptH-yTop-rendered.heightPt);
+      page.drawImage(img,{x, y, width:rendered.widthPt, height:rendered.heightPt});
+      return;
+    }catch(renderErr){ /* fall through to the sanitized standard-font text below */ }
+  }
+  const {text:texts}=safeStandardFontText(rawTexts);
   const y = Math.max(10, ptH - yTop - size);
   const wrapped=wrapTextToWidth(texts, font, size, boxW||200);
   wrapped.forEach((line,li)=>{
@@ -4382,21 +4460,25 @@ function mountPdfEdit(root){
       const bytes=await readFileArrayBuffer(file);
       const doc=await PDFDocument.load(bytes,{ignoreEncryption:true});
       const font=await doc.embedFont(StandardFonts.Helvetica);
-      let anyReplaced=false;
-      annotations.forEach(a=>{
+      for(const a of annotations){
         const page=doc.getPage(a.page-1);
         const {width,height}=page.getSize();
         const x=a.xr*width, y=height-(a.yr*height)-a.size;
         const [r,g,b]=hexToRgb01(a.color);
-        const {text:safeText, replaced}=safeStandardFontText(a.text);
-        if(replaced) anyReplaced=true;
+        if(containsNonWinAnsi(a.text)){
+          try{
+            const rendered=await renderTextToPng(a.text,{sizePt:a.size, color:a.color});
+            const img=await doc.embedPng(rendered.bytes);
+            page.drawImage(img,{x, y, width:rendered.widthPt, height:rendered.heightPt});
+            continue;
+          }catch(renderErr){ /* fall through to the sanitized standard-font text below */ }
+        }
+        const {text:safeText}=safeStandardFontText(a.text);
         page.drawText(safeText, {x, y, size:a.size, font, color:rgb(r,g,b)});
-      });
+      }
       const outBytes=await doc.save();
       downloadBlobFile("edited.pdf", new Blob([outBytes],{type:"application/pdf"}));
-      statusEl.textContent = anyReplaced
-        ? "Done — note: this tool's font only supports Latin characters, so some characters in your text boxes were replaced with '?'."
-        : "Done.";
+      statusEl.textContent="Done.";
     }catch(err){ statusEl.textContent="Couldn't save: "+err.message; }
   };
 }
