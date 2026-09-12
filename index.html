@@ -627,6 +627,22 @@ function riskBand(score){
 function esc(s){
   return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 }
+/* pdf-lib's built-in standard fonts (Helvetica etc.) only support the WinAnsi codepage —
+   any character outside it (Hindi, Bengali, Tamil, Telugu, Arabic, Chinese, Russian, ...)
+   throws and aborts the whole operation. Since embedding full Unicode fonts for every
+   script isn't practical here, swap unsupported characters for "?" so the PDF still
+   builds — degraded for exotic scripts, but no longer a hard crash. Returns whether
+   anything had to be replaced, so callers can surface a note if useful. */
+function safeStandardFontText(text){
+  let replaced=false;
+  const out=Array.from(String(text==null?"":text)).map(ch=>{
+    const cp=ch.codePointAt(0);
+    if(cp<=0xFF) return ch;
+    replaced=true;
+    return "?";
+  }).join("");
+  return {text:out, replaced};
+}
 function todayStr(){
   return new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
 }
@@ -1876,7 +1892,14 @@ const CATEGORIES = [
     {id:"pdf-repair",name:"Repair PDF"},
     {id:"pdf-page-numbers",name:"Page numbers"},
     {id:"scan-to-pdf",name:"Scan to PDF"},
-    {id:"pdf-ocr",name:"OCR PDF"}
+    {id:"pdf-ocr",name:"OCR PDF"},
+    {id:"pdf-compare",name:"Compare PDF"},
+    {id:"pdf-redact",name:"Redact PDF"},
+    {id:"pdf-crop",name:"Crop PDF"},
+    {id:"pdf-forms",name:"PDF Forms"},
+    {id:"ai-summarizer",name:"AI Summarizer"},
+    {id:"pdf-translate",name:"Translate PDF"},
+    {id:"pdf-to-md",name:"PDF to Markdown"}
   ]}
 ];
 /* Tools genuinely not achievable to a trustworthy standard fully client-side (no server) yet.
@@ -1885,7 +1908,7 @@ const CATEGORIES = [
 const PDF_COMING_SOON = {};
 const TOOL_NAMES = {};
 CATEGORIES.forEach(c=>c.tools.forEach(t=>TOOL_NAMES[t.id]=t.name));
-/* Distinct, activity-specific icon + matching background colour per unique tool (66 tools).
+/* Distinct, activity-specific icon + matching background colour per unique tool.
    Each colour is chosen to suit its own emoji/theme, not the category, so every badge
    reads clearly instead of all tools in a category sharing one flat accent colour. */
 const TOOL_ICONS = {
@@ -1921,7 +1944,10 @@ const TOOL_ICONS = {
   "pdf-sign":["✍️","#6d4c41"], "pdf-watermark":["🏷️","#00838f"], "pdf-rotate":["🔃","#546e7a"],
   "html-to-pdf":["🌐","#1565c0"], "pdf-unlock":["🔓","#2e7d32"], "pdf-protect":["🔐","#ad1457"],
   "pdf-organize":["📚","#5d4037"], "pdf-to-pdfa":["🏛️","#37474f"], "pdf-repair":["🔧","#8d6e63"],
-  "pdf-page-numbers":["#️⃣","#5e548e"], "scan-to-pdf":["📷","#78909c"], "pdf-ocr":["🔎","#00695c"]
+  "pdf-page-numbers":["#️⃣","#5e548e"], "scan-to-pdf":["📷","#78909c"], "pdf-ocr":["🔎","#00695c"],
+  "pdf-compare":["🆚","#8e44ad"], "pdf-redact":["⬛","#2b2b2b"], "pdf-crop":["📐","#455a64"],
+  "pdf-forms":["🧾","#5c6bc0"], "ai-summarizer":["🤖","#6a4fae"], "pdf-translate":["🗣️","#00838f"],
+  "pdf-to-md":["Ⓜ️","#2f3e46"]
 };
 function toolIcon(t){ const e=TOOL_ICONS[t.id]; return e?e[0]:"🔧"; }
 function toolIconColor(t,c){ const e=TOOL_ICONS[t.id]; return e?e[1]:c.accent; }
@@ -1996,7 +2022,7 @@ function toolCategory(id){
   for(const c of CATEGORIES) if(c.tools.some(t=>t.id===id)) return c;
   return CATEGORIES[0];
 }
-const TOTAL_TOOL_COUNT = new Set(CATEGORIES.flatMap(c=>c.tools.map(t=>t.id))).size;
+const TOTAL_TOOL_COUNT = CATEGORIES.reduce((n,c)=>n+c.tools.length,0);
 
 /* ============================= ROUTER ============================= */
 let ROUTE = {view:"home"};
@@ -2880,7 +2906,12 @@ function mountMapMaker(root){
 
 /* ============================= PDF TOOLS ============================= */
 if(window.pdfjsLib){
-  pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  const PDFJS_WORKER_URL = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_URL; // safe default while the blob below loads
+  fetch(PDFJS_WORKER_URL)
+    .then(res=>{ if(!res.ok) throw new Error("bad status "+res.status); return res.blob(); })
+    .then(blob=>{ pdfjsLib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(blob); })
+    .catch(()=>{ /* keep the direct URL fallback above — pdf.js will use its main-thread fake worker if that also fails */ });
 }
 function readFileArrayBuffer(file){
   return new Promise((resolve,reject)=>{
@@ -3209,7 +3240,7 @@ function mountPdfWatermark(root){
       const bytes=await readFileArrayBuffer(file);
       const doc=await PDFDocument.load(bytes,{ignoreEncryption:true});
       const font=await doc.embedFont(StandardFonts.HelveticaBold);
-      const text=document.getElementById("wm-text").value||"WATERMARK";
+      const {text, replaced}=safeStandardFontText(document.getElementById("wm-text").value||"WATERMARK");
       const size=Number(document.getElementById("wm-size").value||48);
       const opacity=Number(document.getElementById("wm-opacity").value||0.25);
       const rotate=Number(document.getElementById("wm-rotate").value||45);
@@ -3219,7 +3250,9 @@ function mountPdfWatermark(root){
         page.drawText(text,{x:width/2-textWidth/2, y:height/2, size, font, color:rgb(0.5,0.5,0.5), opacity, rotate:degrees(rotate)});
       });
       downloadBlobFile("watermarked.pdf", new Blob([await doc.save()],{type:"application/pdf"}));
-      statusEl.textContent="Done.";
+      statusEl.textContent = replaced
+        ? "Done — note: this tool's font only supports Latin characters, so some characters in your watermark text were replaced with '?'."
+        : "Done.";
     }catch(err){ statusEl.textContent="Couldn't add watermark: "+err.message; }
     goBtn.disabled=false;
   };
@@ -4109,6 +4142,7 @@ function mountPptToPdf(root){
       const font=await doc.embedFont(StandardFonts.Helvetica);
       const imageCache=new Map(); // zip path -> embedded pdf-lib image (shared across slides that reuse the same picture)
       let skippedImages=0;
+      const textStats={replaced:false};
       for(let si=0; si<slideFiles.length; si++){
         const name=slideFiles[si];
         const xml=await zip.file(name).async("string");
@@ -4121,14 +4155,15 @@ function mountPptToPdf(root){
         const topNodes = spTree ? Array.from(spTree.childNodes).filter(n=>n.nodeType===1) : [];
         for(const node of topNodes){
           statusEl.textContent=`Rendering slide ${si+1} of ${slideFiles.length}...`;
-          await renderPptNode(node, {page, font, ptH, doc, zip, relsMap, imageCache, rgb, onImageSkipped:()=>skippedImages++});
+          await renderPptNode(node, {page, font, ptH, doc, zip, relsMap, imageCache, rgb, onImageSkipped:()=>skippedImages++, textStats});
         }
         fill.style.width=Math.round(((si+1)/slideFiles.length)*100)+"%";
       }
       const outBytes=await doc.save();
       downloadBlobFile(file.name.replace(/\.pptx$/i,"")+".pdf", new Blob([outBytes],{type:"application/pdf"}));
       statusEl.textContent = "Done — "+slideFiles.length+" slide(s) converted."
-        + (skippedImages ? ` ${skippedImages} image(s) used an unsupported format (e.g. WMF/EMF) and were skipped.` : "");
+        + (skippedImages ? ` ${skippedImages} image(s) used an unsupported format (e.g. WMF/EMF) and were skipped.` : "")
+        + (textStats.replaced ? " Note: this tool's font only supports Latin characters, so some text characters were replaced with '?'." : "");
     }catch(err){ statusEl.textContent="Couldn't convert this file: "+err.message; }
     goBtn.disabled=false;
   };
@@ -4171,11 +4206,13 @@ async function renderPptNode(node, ctx){
   }
 }
 function drawPptTextShape(sp, ctx){
-  const {page, font, ptH, rgb}=ctx;
+  const {page, font, ptH, rgb, textStats}=ctx;
   const off=sp.getElementsByTagName("a:off")[0];
   const ext=sp.getElementsByTagName("a:ext")[0];
-  const texts=Array.from(sp.getElementsByTagName("a:t")).map(t=>t.textContent).join(" ");
-  if(!texts.trim()) return;
+  const rawTexts=Array.from(sp.getElementsByTagName("a:t")).map(t=>t.textContent).join(" ");
+  if(!rawTexts.trim()) return;
+  const {text:texts, replaced}=safeStandardFontText(rawTexts);
+  if(replaced && textStats) textStats.replaced=true;
   const x = off ? Number(off.getAttribute("x"))/12700 : 40;
   const yTop = off ? Number(off.getAttribute("y"))/12700 : 40;
   const boxW = ext ? Number(ext.getAttribute("cx"))/12700 : page.getWidth()-80;
@@ -4345,16 +4382,21 @@ function mountPdfEdit(root){
       const bytes=await readFileArrayBuffer(file);
       const doc=await PDFDocument.load(bytes,{ignoreEncryption:true});
       const font=await doc.embedFont(StandardFonts.Helvetica);
+      let anyReplaced=false;
       annotations.forEach(a=>{
         const page=doc.getPage(a.page-1);
         const {width,height}=page.getSize();
         const x=a.xr*width, y=height-(a.yr*height)-a.size;
         const [r,g,b]=hexToRgb01(a.color);
-        page.drawText(a.text, {x, y, size:a.size, font, color:rgb(r,g,b)});
+        const {text:safeText, replaced}=safeStandardFontText(a.text);
+        if(replaced) anyReplaced=true;
+        page.drawText(safeText, {x, y, size:a.size, font, color:rgb(r,g,b)});
       });
       const outBytes=await doc.save();
       downloadBlobFile("edited.pdf", new Blob([outBytes],{type:"application/pdf"}));
-      statusEl.textContent="Done.";
+      statusEl.textContent = anyReplaced
+        ? "Done — note: this tool's font only supports Latin characters, so some characters in your text boxes were replaced with '?'."
+        : "Done.";
     }catch(err){ statusEl.textContent="Couldn't save: "+err.message; }
   };
 }
@@ -4645,6 +4687,782 @@ function mountPdfUnlock(root){
   };
 }
 
+
+/* ================= shared helpers for the new PDF tools ================= */
+function diffLines(a,b){
+  const n=a.length,m=b.length;
+  if(n*m>2000000){ a=a.slice(0,1400); b=b.slice(0,1400); return diffLinesRaw(a,b,true); }
+  return diffLinesRaw(a,b,false);
+}
+function diffLinesRaw(a,b){
+  const n=a.length,m=b.length;
+  const dp=Array.from({length:n+1},()=>new Array(m+1).fill(0));
+  for(let i=n-1;i>=0;i--) for(let j=m-1;j>=0;j--){
+    dp[i][j] = a[i]===b[j] ? dp[i+1][j+1]+1 : Math.max(dp[i+1][j],dp[i][j+1]);
+  }
+  const out=[]; let i=0,j=0;
+  while(i<n && j<m){
+    if(a[i]===b[j]){ out.push({type:"same",text:a[i]}); i++; j++; }
+    else if(dp[i+1][j]>=dp[i][j+1]){ out.push({type:"del",text:a[i]}); i++; }
+    else { out.push({type:"add",text:b[j]}); j++; }
+  }
+  while(i<n){ out.push({type:"del",text:a[i]}); i++; }
+  while(j<m){ out.push({type:"add",text:b[j]}); j++; }
+  return out;
+}
+async function extractPdfLines(pdfjsDoc){
+  const lines=[];
+  for(let i=1;i<=pdfjsDoc.numPages;i++){
+    const page=await pdfjsDoc.getPage(i);
+    const content=await page.getTextContent();
+    let curY=null, curLine=[];
+    content.items.forEach(item=>{
+      const y=item.transform[5];
+      if(curY!==null && Math.abs(y-curY)>2){ const t=curLine.join(" ").trim(); if(t) lines.push(t); curLine=[]; }
+      curLine.push(item.str); curY=y;
+    });
+    if(curLine.length){ const t=curLine.join(" ").trim(); if(t) lines.push(t); }
+  }
+  return lines;
+}
+async function extractPdfLineGroups(pdfjsDoc){
+  const pages=[];
+  for(let i=1;i<=pdfjsDoc.numPages;i++){
+    const page=await pdfjsDoc.getPage(i);
+    const content=await page.getTextContent();
+    const viewport=page.getViewport({scale:1});
+    const items=content.items.map(it=>({str:it.str,x:it.transform[4],y:it.transform[5],w:it.width||0,h:Math.abs(it.transform[3])||10}));
+    items.sort((a,b)=> b.y-a.y || a.x-b.x);
+    const rawLines=[]; let curY=null, curLine=null;
+    items.forEach(it=>{
+      if(curY===null || Math.abs(it.y-curY)>2){ curLine={y:it.y, items:[]}; rawLines.push(curLine); curY=it.y; }
+      curLine.items.push(it);
+    });
+    const lines = rawLines.filter(l=>l.items.some(it=>it.str.trim())).map(l=>{
+      const text=l.items.map(it=>it.str).join(" ").replace(/\s+/g," ").trim();
+      const minX=Math.min(...l.items.map(it=>it.x));
+      const maxX=Math.max(...l.items.map(it=>it.x+it.w));
+      const maxH=Math.max(...l.items.map(it=>it.h));
+      return {text, x:minX, y:l.y, width:Math.max(maxX-minX,1), height:maxH};
+    });
+    pages.push({pageNum:i, size:{width:viewport.width,height:viewport.height}, lines});
+  }
+  return pages;
+}
+async function fetchWithTimeout(url, ms){
+  const ctrl=new AbortController();
+  const timer=setTimeout(()=>ctrl.abort(), ms);
+  try{ return await fetch(url,{signal:ctrl.signal}); }
+  finally{ clearTimeout(timer); }
+}
+async function translateLine(text, tl){
+  if(!text || !text.trim()) return text;
+  let lastErr=null;
+  // Provider 1: MyMemory — built for browser/CORS use, so it's the most reliable first hop.
+  try{
+    const url="https://api.mymemory.translated.net/get?q="+encodeURIComponent(text)+"&langpair=autodetect|"+encodeURIComponent(tl);
+    const res=await fetchWithTimeout(url, 8000);
+    if(res.ok){
+      const data=await res.json();
+      const t=data && data.responseData && data.responseData.translatedText;
+      if(t && !/MYMEMORY WARNING|INVALID (SOURCE|TARGET) LANGUAGE/i.test(t)) return t;
+    }
+  }catch(err){ lastErr=err; }
+  // Provider 2: Google's public single-translate endpoint, as a fallback.
+  try{
+    const url="https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl="+encodeURIComponent(tl)+"&dt=t&q="+encodeURIComponent(text);
+    const res=await fetchWithTimeout(url, 8000);
+    if(res.ok){
+      const data=await res.json();
+      const out=((data && data[0]) || []).map(seg=>seg[0]).join("");
+      if(out) return out;
+    }
+  }catch(err){ lastErr=err; }
+  throw new Error(lastErr ? lastErr.message : "no translation returned");
+}
+function summarizeText(text, opts){
+  const sentences = text.replace(/\s+/g," ").match(/[^.!?]+[.!?]+(\s|$)|[^.!?]+$/g) || [];
+  const clean = sentences.map(s=>s.trim()).filter(s=>s.split(" ").length>3);
+  if(!clean.length) return {summary:"", points:[]};
+  const stop=new Set(["the","a","an","and","or","but","of","to","in","on","for","is","are","was","were","be","this","that","with","as","by","at","it","its","from","which","their","will","shall","has","have","had","not","also","into","such","can","may","these","those","been","than","then","there","about","other","more","any","all","we","you","your","our"]);
+  const freq={};
+  clean.forEach(s=>{ (s.toLowerCase().match(/[a-z0-9]+/g)||[]).forEach(w=>{ if(!stop.has(w)&&w.length>2) freq[w]=(freq[w]||0)+1; }); });
+  const scored = clean.map((s,i)=>{
+    const words=(s.toLowerCase().match(/[a-z0-9]+/g)||[]);
+    const score = words.reduce((sum,w)=> sum+(freq[w]||0),0) / Math.max(words.length,1);
+    return {s,i,score};
+  });
+  const n=Math.max(2,Math.min((opts&&opts.count)||5, clean.length));
+  const top=[...scored].sort((a,b)=>b.score-a.score).slice(0,n).sort((a,b)=>a.i-b.i);
+  return { summary: top.map(t=>t.s).join(" "), points: top.map(t=>t.s) };
+}
+async function buildMarkdownFromPdf(pdfjsDoc){
+  const pages=await extractPdfLineGroups(pdfjsDoc);
+  const heights=[]; pages.forEach(p=>p.lines.forEach(l=>heights.push(Math.round(l.height))));
+  const freq={}; heights.forEach(h=>freq[h]=(freq[h]||0)+1);
+  const bodySize = Number(Object.keys(freq).sort((a,b)=>freq[b]-freq[a])[0])||10;
+  const blocks=[];
+  pages.forEach((p,pi)=>{
+    p.lines.forEach(l=>{
+      let text=l.text.replace(/(https?:\/\/[^\s)]+)/g, m=>"["+m+"]("+m+")");
+      const bulletMatch=text.match(/^([•‣●○▪]|[-*])\s+(.*)/);
+      const numMatch=text.match(/^(\d{1,3}[.)])\s+(.*)/);
+      const ratio = l.height / bodySize;
+      let line;
+      const stripLead=(s)=>s.replace(/^([•‣●○▪]|[-*]|\d{1,3}[.)])\s+/,"");
+      if(ratio>=1.8) line="# "+stripLead(text);
+      else if(ratio>=1.4) line="## "+stripLead(text);
+      else if(ratio>=1.15) line="### "+stripLead(text);
+      else if(bulletMatch) line="- "+bulletMatch[2];
+      else if(numMatch) line=numMatch[1]+" "+numMatch[2];
+      else line=text;
+      blocks.push(line);
+    });
+    if(pi<pages.length-1) blocks.push("---");
+  });
+  return blocks.join("\n\n");
+}
+
+/* ---- Compare PDF ---- */
+function mountPdfCompare(root){
+  let fileA=null, fileB=null;
+  root.innerHTML=`
+  <div class="workspace" style="grid-template-columns:1fr;">
+    <div class="card">
+      <div class="pdf-note"><b>Runs entirely in your browser.</b> Extracts the text of both files and lines it up so you can see what changed. Works best on text-based PDFs — scanned pages have no extractable text to compare.</div>
+      <div class="field-row">
+        <div class="field"><label>Original file</label><div id="dz-host-a"></div><div id="cmp-file-a" class="hint" style="margin-top:6px;"></div></div>
+        <div class="field"><label>Revised file</label><div id="dz-host-b"></div><div id="cmp-file-b" class="hint" style="margin-top:6px;"></div></div>
+      </div>
+      <div class="btn-row"><button class="btn" id="cmp-go" disabled>Compare</button></div>
+      <div id="cmp-status" class="hint"></div>
+      <div id="cmp-result" style="margin-top:14px;"></div>
+    </div>
+  </div>`;
+  mountDropzone(document.getElementById("dz-host-a"),{accept:"application/pdf",label:"Click to choose the original PDF",onFiles:(fs)=>{ fileA=fs[0]; document.getElementById("cmp-file-a").textContent=fileA.name; checkReady(); }});
+  mountDropzone(document.getElementById("dz-host-b"),{accept:"application/pdf",label:"Click to choose the revised PDF",onFiles:(fs)=>{ fileB=fs[0]; document.getElementById("cmp-file-b").textContent=fileB.name; checkReady(); }});
+  function checkReady(){ document.getElementById("cmp-go").disabled = !(fileA&&fileB); }
+  document.getElementById("cmp-go").onclick=async()=>{
+    const statusEl=document.getElementById("cmp-status"); const goBtn=document.getElementById("cmp-go");
+    goBtn.disabled=true; statusEl.textContent="Extracting text from both files...";
+    try{
+      const [bytesA,bytesB]=await Promise.all([readFileArrayBuffer(fileA),readFileArrayBuffer(fileB)]);
+      const [docA,docB]=await Promise.all([pdfjsGetDoc(bytesA),pdfjsGetDoc(bytesB)]);
+      const [linesA,linesB]=await Promise.all([extractPdfLines(docA),extractPdfLines(docB)]);
+      statusEl.textContent="Comparing "+linesA.length+" vs "+linesB.length+" lines...";
+      const capped = linesA.length*linesB.length>2000000;
+      const diff = diffLines(linesA, linesB);
+      let added=0, removed=0;
+      const rows=diff.map(d=>{
+        if(d.type==="add") added++; if(d.type==="del") removed++;
+        const bg = d.type==="add"?"rgba(63,122,85,0.14)": d.type==="del"?"rgba(176,72,62,0.14)":"transparent";
+        const border = d.type==="add"?"#3f7a55": d.type==="del"?"#b0483e":"transparent";
+        const sign = d.type==="add"?"+":d.type==="del"?"−":" ";
+        return `<div style="display:flex;gap:8px;padding:2px 8px;border-left:3px solid ${border};background:${bg};font-family:'IBM Plex Mono',monospace;font-size:12.5px;white-space:pre-wrap;word-break:break-word;"><span style="opacity:.6;flex:none;">${sign}</span><span>${esc(d.text)||"&nbsp;"}</span></div>`;
+      }).join("");
+      document.getElementById("cmp-result").innerHTML = `
+        <div class="hint" style="margin-bottom:8px;"><b>${added}</b> line(s) added, <b>${removed}</b> line(s) removed${capped?" — these are long documents, so only the first 1400 lines of each were compared":""}.</div>
+        <div style="max-height:520px;overflow:auto;border:1px solid var(--line);border-radius:8px;background:var(--paper);">${rows||'<div class="hint" style="padding:10px;">No differences found — or no extractable text.</div>'}</div>`;
+      statusEl.textContent="Done.";
+    }catch(err){ statusEl.textContent="Couldn't compare these files: "+err.message; }
+    goBtn.disabled=false;
+  };
+}
+
+/* ---- Redact PDF ---- */
+function mountPdfRedact(root){
+  let file=null, pdfjsDoc=null, currentPage=1, redactions=[];
+  root.innerHTML=`
+  <div class="workspace" style="grid-template-columns:1fr;">
+    <div class="card">
+      <div class="pdf-note"><b>Runs entirely in your browser.</b> Drag a box over anything you want to remove, then save. Pages with a redaction are rebuilt as an image so the hidden text and graphics can't be recovered by copying text or deleting the black box. Pages left untouched keep their original, still-selectable text.</div>
+      <div id="dz-host"></div>
+      <div id="rdx-controls" style="display:none;margin-top:14px;">
+        <div class="field-row"><div class="field"><label>Page</label><input type="number" id="rdx-page" value="1" min="1"></div></div>
+        <div style="position:relative;display:inline-block;max-width:100%;">
+          <canvas id="rdx-canvas"></canvas>
+          <div id="rdx-overlay" style="position:absolute;inset:0;cursor:crosshair;touch-action:none;"></div>
+        </div>
+        <div id="rdx-list" class="hint" style="margin-top:10px;"></div>
+        <div class="btn-row"><button class="btn" id="rdx-save">Save &amp; Download</button></div>
+      </div>
+      <div id="rdx-status" class="hint" style="margin-top:10px;"></div>
+    </div>
+  </div>`;
+  mountDropzone(document.getElementById("dz-host"),{accept:"application/pdf",label:"Click to choose a PDF",onFiles:async(fs)=>{
+    file=fs[0];
+    const bytes=await readFileArrayBuffer(file);
+    pdfjsDoc=await pdfjsGetDoc(bytes);
+    document.getElementById("rdx-page").max=pdfjsDoc.numPages;
+    document.getElementById("rdx-controls").style.display="block";
+    document.getElementById("rdx-status").textContent=file.name+" — "+pdfjsDoc.numPages+" page(s).";
+    await renderCurrentPage();
+  }});
+  document.getElementById("rdx-page").onchange=async(e)=>{ currentPage=Math.min(Math.max(1,Number(e.target.value)||1), pdfjsDoc.numPages); await renderCurrentPage(); };
+  async function renderCurrentPage(){
+    const canvas=await renderPageToCanvas(pdfjsDoc,currentPage,1.3);
+    const canvasEl=document.getElementById("rdx-canvas");
+    canvasEl.width=canvas.width; canvasEl.height=canvas.height;
+    const dispW=Math.min(canvas.width,760);
+    canvasEl.style.width=dispW+"px";
+    canvasEl.getContext("2d").drawImage(canvas,0,0);
+    const overlay=document.getElementById("rdx-overlay");
+    overlay.style.width=dispW+"px";
+    overlay.style.height=(canvas.height*(dispW/canvas.width))+"px";
+    renderBoxes();
+  }
+  let dragStart=null, dragEl=null;
+  const overlay=document.getElementById("rdx-overlay");
+  overlay.addEventListener("pointerdown",(e)=>{
+    if(!pdfjsDoc) return;
+    if(e.target.closest && e.target.closest("[data-redact-box]")) return; // let clicks on an existing box (e.g. its ✕) through instead of starting a new drag
+    overlay.setPointerCapture(e.pointerId);
+    const rect=overlay.getBoundingClientRect();
+    dragStart={x:(e.clientX-rect.left)/rect.width,y:(e.clientY-rect.top)/rect.height};
+    dragEl=document.createElement("div");
+    dragEl.style.cssText="position:absolute;background:#000;opacity:0.85;";
+    overlay.appendChild(dragEl);
+  });
+  overlay.addEventListener("pointermove",(e)=>{
+    if(!dragStart) return;
+    const rect=overlay.getBoundingClientRect();
+    const x=Math.min(Math.max((e.clientX-rect.left)/rect.width,0),1), y=Math.min(Math.max((e.clientY-rect.top)/rect.height,0),1);
+    const xr=Math.min(x,dragStart.x), yr=Math.min(y,dragStart.y), wr=Math.abs(x-dragStart.x), hr=Math.abs(y-dragStart.y);
+    dragEl.style.left=(xr*100)+"%"; dragEl.style.top=(yr*100)+"%"; dragEl.style.width=(wr*100)+"%"; dragEl.style.height=(hr*100)+"%";
+  });
+  overlay.addEventListener("pointerup",(e)=>{
+    if(!dragStart) return;
+    const rect=overlay.getBoundingClientRect();
+    const x=Math.min(Math.max((e.clientX-rect.left)/rect.width,0),1), y=Math.min(Math.max((e.clientY-rect.top)/rect.height,0),1);
+    const xr=Math.min(x,dragStart.x), yr=Math.min(y,dragStart.y), wr=Math.abs(x-dragStart.x), hr=Math.abs(y-dragStart.y);
+    dragStart=null; if(dragEl){dragEl.remove(); dragEl=null;}
+    if(wr>0.01 && hr>0.005) redactions.push({page:currentPage,xr,yr,wr,hr});
+    renderBoxes();
+  });
+  function renderBoxes(){
+    const overlay=document.getElementById("rdx-overlay"); if(!overlay) return;
+    overlay.innerHTML="";
+    redactions.filter(r=>r.page===currentPage).forEach(r=>{
+      const idx=redactions.indexOf(r);
+      const box=document.createElement("div");
+      box.dataset.redactBox="1";
+      box.style.cssText=`position:absolute;left:${r.xr*100}%;top:${r.yr*100}%;width:${r.wr*100}%;height:${r.hr*100}%;background:#000;display:flex;align-items:flex-start;justify-content:flex-end;`;
+      const rm=document.createElement("span");
+      rm.textContent="✕"; rm.style.cssText="color:#fff;font-size:11px;cursor:pointer;padding:3px 6px;";
+      rm.onpointerdown=(ev)=>{ ev.stopPropagation(); };
+      rm.onclick=(ev)=>{ ev.stopPropagation(); redactions.splice(idx,1); renderBoxes(); };
+      box.appendChild(rm);
+      overlay.appendChild(box);
+    });
+    document.getElementById("rdx-list").textContent = redactions.length ? redactions.length+" redaction(s) marked across the document." : "No redactions marked yet — drag on the page above.";
+  }
+  document.getElementById("rdx-save").onclick=async()=>{
+    const statusEl=document.getElementById("rdx-status");
+    statusEl.textContent="Rebuilding pages...";
+    try{
+      const {PDFDocument}=PDFLib;
+      const bytes=await readFileArrayBuffer(file);
+      const srcDoc=await PDFDocument.load(bytes,{ignoreEncryption:true});
+      const outDoc=await PDFDocument.create();
+      const pagesWithRedactions=new Set(redactions.map(r=>r.page));
+      for(let i=1;i<=pdfjsDoc.numPages;i++){
+        if(pagesWithRedactions.has(i)){
+          const canvas=await renderPageToCanvas(pdfjsDoc,i,2.2);
+          const ctx=canvas.getContext("2d"); ctx.fillStyle="#000000";
+          redactions.filter(r=>r.page===i).forEach(r=>{ ctx.fillRect(r.xr*canvas.width, r.yr*canvas.height, r.wr*canvas.width, r.hr*canvas.height); });
+          const jpgBlob=await new Promise(res=>canvas.toBlob(res,"image/jpeg",0.9));
+          const img=await outDoc.embedJpg(await jpgBlob.arrayBuffer());
+          const srcPage=srcDoc.getPage(i-1); const {width,height}=srcPage.getSize();
+          const page=outDoc.addPage([width,height]);
+          page.drawImage(img,{x:0,y:0,width,height});
+        } else {
+          const [copied]=await outDoc.copyPages(srcDoc,[i-1]);
+          outDoc.addPage(copied);
+        }
+      }
+      downloadBlobFile(file.name.replace(/\.pdf$/i,"")+"-redacted.pdf", new Blob([await outDoc.save()],{type:"application/pdf"}));
+      statusEl.textContent = redactions.length ? "Done — "+pagesWithRedactions.size+" page(s) rebuilt to permanently remove the redacted content." : "No redactions were marked, so the file was saved unchanged.";
+    }catch(err){ statusEl.textContent="Couldn't save: "+err.message; }
+  };
+}
+
+/* ---- Crop PDF ---- */
+function mountPdfCrop(root){
+  let file=null, pdfjsDoc=null, currentPage=1, cropRect=null;
+  root.innerHTML=`
+  <div class="workspace" style="grid-template-columns:1fr;">
+    <div class="card">
+      <div class="pdf-note"><b>Runs entirely in your browser.</b> Drag a box on the preview to choose the area to keep, then crop just this page or every page.</div>
+      <div id="dz-host"></div>
+      <div id="crop-controls" style="display:none;margin-top:14px;">
+        <div class="field-row">
+          <div class="field"><label>Page shown</label><input type="number" id="crop-page" value="1" min="1"></div>
+          <div class="field"><label>Apply crop to</label><select id="crop-mode"><option value="all">All pages (same relative area)</option><option value="one">This page only</option></select></div>
+        </div>
+        <div style="position:relative;display:inline-block;max-width:100%;">
+          <canvas id="crop-canvas"></canvas>
+          <div id="crop-overlay" style="position:absolute;inset:0;cursor:crosshair;touch-action:none;"></div>
+        </div>
+        <div id="crop-hint" class="hint" style="margin-top:10px;">Drag on the page above to select the area to keep.</div>
+        <div class="btn-row"><button class="btn secondary" id="crop-reset" type="button">Reset selection</button><button class="btn" id="crop-go">Crop &amp; Download</button></div>
+      </div>
+      <div id="crop-status" class="hint" style="margin-top:10px;"></div>
+    </div>
+  </div>`;
+  mountDropzone(document.getElementById("dz-host"),{accept:"application/pdf",label:"Click to choose a PDF",onFiles:async(fs)=>{
+    file=fs[0];
+    const bytes=await readFileArrayBuffer(file);
+    pdfjsDoc=await pdfjsGetDoc(bytes);
+    document.getElementById("crop-page").max=pdfjsDoc.numPages;
+    document.getElementById("crop-controls").style.display="block";
+    document.getElementById("crop-status").textContent=file.name+" — "+pdfjsDoc.numPages+" page(s).";
+    cropRect=null;
+    await renderCurrentPage();
+  }});
+  document.getElementById("crop-page").onchange=async(e)=>{ currentPage=Math.min(Math.max(1,Number(e.target.value)||1), pdfjsDoc.numPages); cropRect=null; await renderCurrentPage(); };
+  document.getElementById("crop-reset").onclick=()=>{ cropRect=null; drawSelection(); };
+  async function renderCurrentPage(){
+    const canvas=await renderPageToCanvas(pdfjsDoc,currentPage,1.3);
+    const canvasEl=document.getElementById("crop-canvas");
+    canvasEl.width=canvas.width; canvasEl.height=canvas.height;
+    const dispW=Math.min(canvas.width,760);
+    canvasEl.style.width=dispW+"px";
+    canvasEl.getContext("2d").drawImage(canvas,0,0);
+    const overlay=document.getElementById("crop-overlay");
+    overlay.style.width=dispW+"px";
+    overlay.style.height=(canvas.height*(dispW/canvas.width))+"px";
+    drawSelection();
+  }
+  let dragStart=null;
+  const overlay=document.getElementById("crop-overlay");
+  overlay.addEventListener("pointerdown",(e)=>{
+    if(!pdfjsDoc) return;
+    overlay.setPointerCapture(e.pointerId);
+    const rect=overlay.getBoundingClientRect();
+    dragStart={x:(e.clientX-rect.left)/rect.width,y:(e.clientY-rect.top)/rect.height};
+  });
+  overlay.addEventListener("pointermove",(e)=>{
+    if(!dragStart) return;
+    const rect=overlay.getBoundingClientRect();
+    const x=Math.min(Math.max((e.clientX-rect.left)/rect.width,0),1), y=Math.min(Math.max((e.clientY-rect.top)/rect.height,0),1);
+    cropRect={xr:Math.min(x,dragStart.x), yr:Math.min(y,dragStart.y), wr:Math.abs(x-dragStart.x), hr:Math.abs(y-dragStart.y)};
+    drawSelection();
+  });
+  overlay.addEventListener("pointerup",()=>{ dragStart=null; });
+  function drawSelection(){
+    const overlay=document.getElementById("crop-overlay"); if(!overlay) return;
+    overlay.innerHTML="";
+    if(!cropRect) return;
+    const box=document.createElement("div");
+    box.style.cssText=`position:absolute;left:${cropRect.xr*100}%;top:${cropRect.yr*100}%;width:${cropRect.wr*100}%;height:${cropRect.hr*100}%;border:2px dashed #3c7a72;background:rgba(60,122,114,0.18);`;
+    overlay.appendChild(box);
+  }
+  document.getElementById("crop-go").onclick=async()=>{
+    const statusEl=document.getElementById("crop-status");
+    if(!cropRect || cropRect.wr<0.02 || cropRect.hr<0.02){ statusEl.textContent="Drag a box on the page above to select the area to keep."; return; }
+    statusEl.textContent="Cropping...";
+    try{
+      const {PDFDocument}=PDFLib;
+      const bytes=await readFileArrayBuffer(file);
+      const doc=await PDFDocument.load(bytes,{ignoreEncryption:true});
+      const mode=document.getElementById("crop-mode").value;
+      const targets = mode==="all" ? doc.getPages() : [doc.getPage(currentPage-1)];
+      targets.forEach(page=>{
+        const {width,height}=page.getSize();
+        const x=cropRect.xr*width, w=cropRect.wr*width, h=cropRect.hr*height;
+        const yTop=cropRect.yr*height, yBottom=height-yTop-h;
+        page.setMediaBox(x,yBottom,w,h);
+        page.setCropBox(x,yBottom,w,h);
+      });
+      downloadBlobFile(file.name.replace(/\.pdf$/i,"")+"-cropped.pdf", new Blob([await doc.save()],{type:"application/pdf"}));
+      statusEl.textContent="Done.";
+    }catch(err){ statusEl.textContent="Couldn't crop this file: "+err.message; }
+  };
+}
+
+/* ---- PDF Forms ---- */
+function mountPdfForms(root){
+  let file=null, pdfjsDoc=null, currentPage=1, mode="fill";
+  let newFields=[], fieldCounter=1, dragStart=null, dragEl=null;
+  root.innerHTML=`
+  <div class="workspace" style="grid-template-columns:1fr;">
+    <div class="card">
+      <div class="pdf-note"><b>Runs entirely in your browser.</b></div>
+      <div class="field" style="margin-bottom:10px;"><label>What do you want to do?</label>
+        <select id="pf-mode"><option value="fill">Fill in an existing form</option><option value="add">Add fillable fields to a PDF</option></select>
+      </div>
+      <div id="dz-host"></div>
+      <div id="pf-status" class="hint" style="margin-top:10px;"></div>
+      <div id="pf-fill-area" style="display:none;margin-top:14px;"></div>
+      <div id="pf-add-area" style="display:none;margin-top:14px;">
+        <div class="field-row">
+          <div class="field"><label>Page</label><input type="number" id="pf-page" value="1" min="1"></div>
+          <div class="field"><label>Field type</label><select id="pf-type"><option value="text">Text field</option><option value="checkbox">Checkbox</option><option value="dropdown">Dropdown (multiple choice)</option></select></div>
+          <div class="field" id="pf-options-field" style="display:none;"><label>Options (comma-separated)</label><input type="text" id="pf-options" placeholder="Yes,No,Maybe"></div>
+        </div>
+        <div style="position:relative;display:inline-block;max-width:100%;">
+          <canvas id="pf-canvas"></canvas>
+          <div id="pf-overlay" style="position:absolute;inset:0;cursor:crosshair;touch-action:none;"></div>
+        </div>
+        <div id="pf-list" class="hint" style="margin-top:10px;">Drag a box on the page to place a field.</div>
+        <div class="btn-row"><button class="btn" id="pf-save">Save &amp; Download</button></div>
+      </div>
+    </div>
+  </div>`;
+  document.getElementById("pf-mode").onchange=(e)=>{ mode=e.target.value; refreshMode(); };
+  document.getElementById("pf-type").onchange=(e)=>{ document.getElementById("pf-options-field").style.display = e.target.value==="dropdown"?"block":"none"; };
+  mountDropzone(document.getElementById("dz-host"),{accept:"application/pdf",label:"Click to choose a PDF",onFiles:async(fs)=>{
+    file=fs[0];
+    const bytes=await readFileArrayBuffer(file);
+    pdfjsDoc=await pdfjsGetDoc(bytes);
+    document.getElementById("pf-page").max=pdfjsDoc.numPages;
+    document.getElementById("pf-status").textContent=file.name+" — "+pdfjsDoc.numPages+" page(s).";
+    if(mode==="fill") await loadFillFields(); else await renderAddCanvas();
+  }});
+  function refreshMode(){
+    document.getElementById("pf-fill-area").style.display = mode==="fill"?"block":"none";
+    document.getElementById("pf-add-area").style.display = mode==="add"?"block":"none";
+    if(!file) return;
+    if(mode==="fill") loadFillFields(); else renderAddCanvas();
+  }
+  async function loadFillFields(){
+    const area=document.getElementById("pf-fill-area"); area.style.display="block"; document.getElementById("pf-add-area").style.display="none";
+    area.innerHTML="Reading form fields...";
+    try{
+      const {PDFDocument, PDFCheckBox, PDFDropdown, PDFOptionList, PDFRadioGroup}=PDFLib;
+      const bytes=await readFileArrayBuffer(file);
+      const doc=await PDFDocument.load(bytes,{ignoreEncryption:true});
+      const form=doc.getForm();
+      const fields=form.getFields();
+      if(!fields.length){ area.innerHTML=`<div class="hint">No fillable fields were detected in this PDF. Switch to "Add fillable fields" above to create some.</div>`; return; }
+      area.innerHTML = fields.map((f,i)=>{
+        const name=f.getName();
+        if(f instanceof PDFCheckBox) return `<div class="field"><label style="font-weight:400;"><input type="checkbox" data-field="${i}" ${f.isChecked()?"checked":""}> ${esc(name)}</label></div>`;
+        if(f instanceof PDFDropdown || f instanceof PDFOptionList){
+          const opts=f.getOptions(); const sel=(f.getSelected&&f.getSelected())||[];
+          return `<div class="field"><label>${esc(name)}</label><select data-field="${i}">${opts.map(o=>`<option value="${esc(o)}" ${sel.includes(o)?"selected":""}>${esc(o)}</option>`).join("")}</select></div>`;
+        }
+        if(f instanceof PDFRadioGroup){
+          const opts=f.getOptions(); const sel=f.getSelected&&f.getSelected();
+          return `<div class="field"><label>${esc(name)}</label>${opts.map(o=>`<label style="font-weight:400;margin-right:12px;"><input type="radio" name="pf-radio-${i}" data-field="${i}" value="${esc(o)}" ${sel===o?"checked":""}> ${esc(o)}</label>`).join("")}</div>`;
+        }
+        let val=""; try{ val=f.getText()||""; }catch(e){}
+        return `<div class="field"><label>${esc(name)}</label><input type="text" data-field="${i}" value="${esc(val)}"></div>`;
+      }).join("") + `<div class="field" style="margin-top:10px;"><label style="font-weight:400;"><input type="checkbox" id="pf-flatten"> Flatten (make read-only after filling)</label></div><div class="btn-row"><button class="btn" id="pf-fill-save">Save &amp; Download</button></div><div id="pf-fill-status" class="hint"></div>`;
+      document.getElementById("pf-fill-save").onclick=async()=>{
+        const statusEl=document.getElementById("pf-fill-status");
+        statusEl.textContent="Saving...";
+        try{
+          area.querySelectorAll("[data-field]").forEach(input=>{
+            const f=fields[Number(input.dataset.field)];
+            if(f instanceof PDFCheckBox){ input.checked ? f.check() : f.uncheck(); }
+            else if(f instanceof PDFDropdown || f instanceof PDFOptionList){ f.select(input.value); }
+            else if(f instanceof PDFRadioGroup){ if(input.checked) f.select(input.value); }
+            else { try{ f.setText(input.value); }catch(e){} }
+          });
+          if(document.getElementById("pf-flatten").checked) form.flatten();
+          downloadBlobFile(file.name.replace(/\.pdf$/i,"")+"-filled.pdf", new Blob([await doc.save()],{type:"application/pdf"}));
+          statusEl.textContent="Done.";
+        }catch(err){ statusEl.textContent="Couldn't save: "+err.message; }
+      };
+    }catch(err){ area.innerHTML=`<div class="hint">Couldn't read this PDF's form: ${esc(err.message)}</div>`; }
+  }
+  async function renderAddCanvas(){
+    document.getElementById("pf-add-area").style.display="block"; document.getElementById("pf-fill-area").style.display="none";
+    const canvas=await renderPageToCanvas(pdfjsDoc,currentPage,1.3);
+    const canvasEl=document.getElementById("pf-canvas");
+    canvasEl.width=canvas.width; canvasEl.height=canvas.height;
+    const dispW=Math.min(canvas.width,760);
+    canvasEl.style.width=dispW+"px";
+    canvasEl.getContext("2d").drawImage(canvas,0,0);
+    const overlay=document.getElementById("pf-overlay");
+    overlay.style.width=dispW+"px";
+    overlay.style.height=(canvas.height*(dispW/canvas.width))+"px";
+    renderFieldBoxes();
+  }
+  document.getElementById("pf-page").onchange=async(e)=>{ currentPage=Math.min(Math.max(1,Number(e.target.value)||1), pdfjsDoc.numPages); await renderAddCanvas(); };
+  const overlay=document.getElementById("pf-overlay");
+  overlay.addEventListener("pointerdown",(e)=>{
+    if(!pdfjsDoc) return;
+    if(e.target.closest && e.target.closest("[data-field-box]")) return; // let clicks on an existing box (e.g. its ✕) through instead of starting a new drag
+    overlay.setPointerCapture(e.pointerId);
+    const rect=overlay.getBoundingClientRect();
+    dragStart={x:(e.clientX-rect.left)/rect.width,y:(e.clientY-rect.top)/rect.height};
+    dragEl=document.createElement("div");
+    dragEl.style.cssText="position:absolute;border:2px dashed #5c6bc0;background:rgba(92,107,192,0.15);";
+    overlay.appendChild(dragEl);
+  });
+  overlay.addEventListener("pointermove",(e)=>{
+    if(!dragStart) return;
+    const rect=overlay.getBoundingClientRect();
+    const x=Math.min(Math.max((e.clientX-rect.left)/rect.width,0),1), y=Math.min(Math.max((e.clientY-rect.top)/rect.height,0),1);
+    const xr=Math.min(x,dragStart.x), yr=Math.min(y,dragStart.y), wr=Math.abs(x-dragStart.x), hr=Math.abs(y-dragStart.y);
+    dragEl.style.left=(xr*100)+"%"; dragEl.style.top=(yr*100)+"%"; dragEl.style.width=(wr*100)+"%"; dragEl.style.height=(hr*100)+"%";
+  });
+  overlay.addEventListener("pointerup",(e)=>{
+    if(!dragStart) return;
+    const rect=overlay.getBoundingClientRect();
+    const x=Math.min(Math.max((e.clientX-rect.left)/rect.width,0),1), y=Math.min(Math.max((e.clientY-rect.top)/rect.height,0),1);
+    const xr=Math.min(x,dragStart.x), yr=Math.min(y,dragStart.y);
+    let wr=Math.abs(x-dragStart.x), hr=Math.abs(y-dragStart.y);
+    dragStart=null; if(dragEl){dragEl.remove(); dragEl=null;}
+    if(wr<0.02 || hr<0.01){ wr=Math.max(wr,0.18); hr=Math.max(hr,0.05); }
+    const type=document.getElementById("pf-type").value;
+    const name="Field"+(fieldCounter++);
+    const options = type==="dropdown" ? (document.getElementById("pf-options").value||"Option 1,Option 2").split(",").map(s=>s.trim()).filter(Boolean) : null;
+    newFields.push({page:currentPage,xr,yr,wr,hr,type,name,options,value:(options&&options[0])||"",checked:false});
+    renderFieldBoxes();
+  });
+  function renderFieldBoxes(){
+    const overlay=document.getElementById("pf-overlay"); if(!overlay) return;
+    overlay.innerHTML="";
+    newFields.filter(f=>f.page===currentPage).forEach(f=>{
+      const idx=newFields.indexOf(f);
+      const box=document.createElement("div");
+      box.dataset.fieldBox="1";
+      box.style.cssText=`position:absolute;left:${f.xr*100}%;top:${f.yr*100}%;width:${f.wr*100}%;height:${f.hr*100}%;box-sizing:border-box;`;
+      const tab=document.createElement("div");
+      tab.style.cssText="position:absolute;left:0;bottom:100%;background:#3949ab;color:#fff;font-size:9px;line-height:1;padding:3px 4px;border-radius:3px 3px 0 0;white-space:nowrap;display:flex;gap:6px;align-items:center;z-index:1;";
+      tab.innerHTML=`<span>${esc(f.name)} · ${esc(f.type)}</span><span style="cursor:pointer;font-weight:700;padding:0 2px;">✕</span>`;
+      const rmBtn=tab.querySelector("span:last-child");
+      rmBtn.onpointerdown=(ev)=>{ ev.stopPropagation(); };
+      rmBtn.onclick=(ev)=>{ ev.stopPropagation(); newFields.splice(idx,1); renderFieldBoxes(); };
+      box.appendChild(tab);
+      let ctrl;
+      if(f.type==="checkbox"){
+        ctrl=document.createElement("div");
+        ctrl.style.cssText="width:100%;height:100%;display:flex;align-items:center;justify-content:center;border:2px solid #5c6bc0;background:rgba(92,107,192,0.10);box-sizing:border-box;";
+        const cb=document.createElement("input"); cb.type="checkbox"; cb.checked=!!f.checked;
+        cb.style.cssText="width:60%;height:60%;cursor:pointer;";
+        cb.onpointerdown=(ev)=>ev.stopPropagation();
+        cb.onchange=()=>{ f.checked=cb.checked; };
+        ctrl.appendChild(cb);
+      } else if(f.type==="dropdown"){
+        ctrl=document.createElement("select");
+        ctrl.style.cssText="width:100%;height:100%;border:2px solid #5c6bc0;background:rgba(92,107,192,0.10);font-size:11px;box-sizing:border-box;";
+        (f.options&&f.options.length?f.options:["Option 1"]).forEach(o=>{
+          const opt=document.createElement("option"); opt.value=o; opt.textContent=o; if(o===f.value) opt.selected=true; ctrl.appendChild(opt);
+        });
+        ctrl.onpointerdown=(ev)=>ev.stopPropagation();
+        ctrl.onchange=()=>{ f.value=ctrl.value; };
+      } else {
+        ctrl=document.createElement("input"); ctrl.type="text"; ctrl.value=f.value||""; ctrl.placeholder="Default text (optional)";
+        ctrl.style.cssText="width:100%;height:100%;border:2px solid #5c6bc0;background:rgba(92,107,192,0.10);font-size:12px;padding:2px 4px;box-sizing:border-box;";
+        ctrl.onpointerdown=(ev)=>ev.stopPropagation();
+        ctrl.oninput=()=>{ f.value=ctrl.value; };
+      }
+      box.appendChild(ctrl);
+      overlay.appendChild(box);
+    });
+    document.getElementById("pf-list").textContent = newFields.length ? newFields.length+" field(s) placed across all pages — type directly into a box to set its default value." : "Drag a box on the page to place a field.";
+  }
+  document.getElementById("pf-save").onclick=async()=>{
+    const statusEl=document.getElementById("pf-status");
+    statusEl.textContent="Saving...";
+    try{
+      const {PDFDocument}=PDFLib;
+      const bytes=await readFileArrayBuffer(file);
+      const doc=await PDFDocument.load(bytes,{ignoreEncryption:true});
+      const form=doc.getForm();
+      newFields.forEach(f=>{
+        const page=doc.getPage(f.page-1);
+        const {width,height}=page.getSize();
+        const x=f.xr*width, w=f.wr*width, h=f.hr*height;
+        const y=height-(f.yr*height)-h;
+        if(f.type==="checkbox"){ const side=Math.max(Math.min(w,h),10); const cb=form.createCheckBox(f.name); cb.addToPage(page,{x,y,width:side,height:side}); if(f.checked) cb.check(); }
+        else if(f.type==="dropdown"){ const dd=form.createDropdown(f.name); dd.setOptions((f.options&&f.options.length)?f.options:["Option 1"]); dd.addToPage(page,{x,y,width:w,height:h}); if(f.value) dd.select(f.value); }
+        else { const tf=form.createTextField(f.name); tf.addToPage(page,{x,y,width:w,height:h}); if(f.value) tf.setText(f.value); }
+      });
+      downloadBlobFile(file.name.replace(/\.pdf$/i,"")+"-form.pdf", new Blob([await doc.save()],{type:"application/pdf"}));
+      statusEl.textContent="Done — "+newFields.length+" field(s) added.";
+    }catch(err){ statusEl.textContent="Couldn't save: "+err.message; }
+  };
+}
+
+/* ---- AI Summarizer (on-device extractive summary) ---- */
+function mountAiSummarizer(root){
+  let file=null, lastSummary="";
+  root.innerHTML=`
+  <div class="workspace two-col">
+    <div class="card">
+      <div class="pdf-note"><b>Runs entirely in your browser.</b> This uses a lightweight, on-device algorithm that picks and reorders the most representative sentences from your text — it isn't a large language model, so treat the result as a fast first pass rather than a polished, generated summary.</div>
+      <div id="dz-host"></div>
+      <div id="ai-file" class="hint" style="margin-top:8px;"></div>
+      <div class="field" style="margin-top:12px;"><label>Or paste text directly</label><textarea id="ai-text" rows="8" placeholder="Paste an article, paragraph, or essay here..." style="width:100%;font-family:inherit;font-size:13px;padding:10px;border:1px solid var(--line);border-radius:8px;"></textarea></div>
+      <div class="field-row"><div class="field"><label>Summary length (sentences)</label><input type="number" id="ai-count" value="5" min="2" max="15"></div></div>
+      <div class="btn-row"><button class="btn" id="ai-go">Summarize</button></div>
+      <div id="ai-status" class="hint"></div>
+    </div>
+    <div class="card">
+      <h3>Summary</h3>
+      <div id="ai-summary" class="doc-wrap"><div class="doc-empty">Your summary will appear here.</div></div>
+      <div id="ai-points"></div>
+      <div class="btn-row" id="ai-dl-row" style="display:none;"><button class="btn secondary" id="ai-dl" type="button">Download summary (.txt)</button></div>
+    </div>
+  </div>`;
+  mountDropzone(document.getElementById("dz-host"),{accept:"application/pdf,.txt,text/plain",label:"Click to choose a PDF or .txt file (optional)",onFiles:async(fs)=>{
+    file=fs[0]; document.getElementById("ai-file").textContent="Loading "+file.name+"...";
+    try{
+      let text="";
+      if(file.type==="application/pdf"||file.name.toLowerCase().endsWith(".pdf")){
+        const bytes=await readFileArrayBuffer(file);
+        const pdfjsDoc=await pdfjsGetDoc(bytes);
+        const parts=[];
+        for(let i=1;i<=pdfjsDoc.numPages;i++){ const page=await pdfjsDoc.getPage(i); const content=await page.getTextContent(); parts.push(content.items.map(it=>it.str).join(" ")); }
+        text=parts.join(" ");
+      } else { text=await file.text(); }
+      document.getElementById("ai-text").value=text;
+      document.getElementById("ai-file").textContent=file.name+" loaded — "+text.split(/\s+/).filter(Boolean).length+" words.";
+    }catch(err){ document.getElementById("ai-file").textContent="Couldn't read this file: "+err.message; }
+  }});
+  document.getElementById("ai-go").onclick=()=>{
+    const statusEl=document.getElementById("ai-status");
+    const text=document.getElementById("ai-text").value.trim();
+    if(!text){ statusEl.textContent="Paste some text or upload a file first."; return; }
+    const count=Number(document.getElementById("ai-count").value)||5;
+    const {summary,points}=summarizeText(text,{count});
+    if(!points.length){ statusEl.textContent="Couldn't find enough distinct sentences to summarize."; return; }
+    lastSummary=summary;
+    document.getElementById("ai-summary").innerHTML=`<p style="line-height:1.7;">${esc(summary)}</p>`;
+    document.getElementById("ai-points").innerHTML=`<h3 style="font-size:15px;margin:14px 0 6px;">Key points</h3><ul style="margin:0;padding-left:20px;line-height:1.7;">${points.map(p=>`<li>${esc(p)}</li>`).join("")}</ul>`;
+    document.getElementById("ai-dl-row").style.display="flex";
+    statusEl.textContent="Done — condensed "+text.split(/\s+/).filter(Boolean).length+" words to "+points.length+" sentences.";
+  };
+  document.getElementById("ai-dl").onclick=()=>{ downloadBlobFile("summary.txt", new Blob([lastSummary],{type:"text/plain"})); };
+}
+
+/* ---- Translate PDF ---- */
+function mountPdfTranslate(root){
+  let file=null;
+  const LANGS=[["es","Spanish"],["fr","French"],["de","German"],["hi","Hindi"],["zh-CN","Chinese (Simplified)"],["ar","Arabic"],["pt","Portuguese"],["ru","Russian"],["ja","Japanese"],["bn","Bengali"],["ta","Tamil"],["te","Telugu"],["mr","Marathi"],["gu","Gujarati"],["id","Indonesian"],["it","Italian"],["en","English"]];
+  root.innerHTML=`
+  <div class="workspace two-col">
+    <div class="card">
+      <div class="pdf-note"><b>What this does:</b> extracts each line of text and sends it to a free public translation service over the internet (this one step isn't private — the rest of the app never leaves your device), then rebuilds each page with the original images and graphics kept and the translated text placed over each line's original position. Exact fonts can't be reused, so translated text is set in a standard font at roughly the original size — layout stays close to the original but won't be pixel-perfect.</div>
+      <div id="dz-host"></div>
+      <div id="tr-file" class="hint" style="margin-top:8px;"></div>
+      <div class="field" style="margin-top:12px;"><label>Translate to</label><select id="tr-lang">${LANGS.map(l=>`<option value="${l[0]}">${l[1]}</option>`).join("")}</select></div>
+      <div class="btn-row"><button class="btn" id="tr-go" disabled>Translate &amp; Download</button></div>
+      <div class="progress-line" id="tr-progress" style="display:none;"><div class="fill" id="tr-fill"></div></div>
+      <div id="tr-status" class="hint"></div>
+    </div>
+    <div class="card"><h3>Good to know</h3><p class="hint">Large documents make many translation requests and can take a while. If the translation service can't be reached (offline, or blocked by a network/firewall), this tool will tell you rather than silently failing.</p></div>
+  </div>`;
+  mountDropzone(document.getElementById("dz-host"),{accept:"application/pdf",label:"Click to choose a PDF",onFiles:(fs)=>{
+    file=fs[0]; document.getElementById("tr-file").textContent=file.name; document.getElementById("tr-go").disabled=false;
+  }});
+  document.getElementById("tr-go").onclick=async()=>{
+    const statusEl=document.getElementById("tr-status"); const goBtn=document.getElementById("tr-go");
+    const prog=document.getElementById("tr-progress"); const fill=document.getElementById("tr-fill");
+    goBtn.disabled=true; prog.style.display="block"; fill.style.width="0%";
+    try{
+      const tl=document.getElementById("tr-lang").value;
+      statusEl.textContent="Reading pages...";
+      const bytes=await readFileArrayBuffer(file);
+      const pdfjsDoc=await pdfjsGetDoc(bytes);
+      const pages=await extractPdfLineGroups(pdfjsDoc);
+      const totalLines=pages.reduce((n,p)=>n+p.lines.length,0);
+      const MAX_LINES=600;
+      let processed=0, failed=0, truncated=false, giveUpNetwork=false;
+      const denom=Math.max(1,Math.min(totalLines,MAX_LINES));
+      statusEl.textContent="Translating "+denom+" line(s)...";
+      for(const p of pages){
+        for(const line of p.lines){
+          if(processed+failed>=MAX_LINES){ truncated=true; line.translated=line.text; continue; }
+          if(giveUpNetwork){ line.translated=line.text; continue; }
+          try{
+            line.translated=await translateLine(line.text, tl);
+            processed++;
+          }catch(err){
+            line.translated=line.text;
+            failed++;
+            // If nothing has succeeded after several tries, the service is likely unreachable from here (offline, or blocked by this network/preview sandbox) — stop wasting time retrying every remaining line.
+            if(processed===0 && failed>=3) giveUpNetwork=true;
+          }
+          fill.style.width=Math.round(((processed+failed)/denom)*100)+"%";
+          statusEl.textContent="Translating line "+(processed+failed)+" of "+denom+"...";
+        }
+      }
+      statusEl.textContent="Rebuilding PDF...";
+      const {PDFDocument}=PDFLib;
+      const outDoc=await PDFDocument.create();
+      for(const p of pages){
+        const canvas=await renderPageToCanvas(pdfjsDoc,p.pageNum,2);
+        const ctx=canvas.getContext("2d");
+        const scaleX=canvas.width/p.size.width, scaleY=canvas.height/p.size.height;
+        ctx.fillStyle="#ffffff";
+        p.lines.forEach(l=>{
+          ctx.fillRect((l.x-1)*scaleX, canvas.height-((l.y+l.height+1)*scaleY), (l.width+4)*scaleX, (l.height+4)*scaleY);
+        });
+        ctx.fillStyle="#15151a";
+        ctx.textBaseline="alphabetic";
+        const isRtl = tl==="ar";
+        ctx.direction = isRtl ? "rtl" : "ltr";
+        ctx.textAlign = isRtl ? "right" : "left";
+        p.lines.forEach(l=>{
+          const text=l.translated||l.text; if(!text) return;
+          let sizePx=Math.max(8, Math.min(l.height*scaleY*0.82, 90));
+          ctx.font=sizePx+"px sans-serif";
+          const maxW=(l.width*scaleX)*1.4;
+          const w=ctx.measureText(text).width;
+          if(w>0 && maxW>0 && w>maxW){ sizePx=Math.max(6,sizePx*(maxW/w)); ctx.font=sizePx+"px sans-serif"; }
+          const drawX = isRtl ? (l.x+l.width)*scaleX : l.x*scaleX;
+          const drawY=canvas.height-(l.y*scaleY);
+          ctx.fillText(text, drawX, drawY);
+        });
+        const jpgBlob=await new Promise(res=>canvas.toBlob(res,"image/jpeg",0.92));
+        const img=await outDoc.embedJpg(await jpgBlob.arrayBuffer());
+        const page=outDoc.addPage([p.size.width,p.size.height]);
+        page.drawImage(img,{x:0,y:0,width:p.size.width,height:p.size.height});
+      }
+      downloadBlobFile(file.name.replace(/\.pdf$/i,"")+"-translated.pdf", new Blob([await outDoc.save()],{type:"application/pdf"}));
+      if(giveUpNetwork){
+        statusEl.textContent="Couldn't reach a translation service from this browser/network, so the PDF was rebuilt with the original text unchanged and downloaded anyway. Try again on a normal internet connection (this can happen inside sandboxed previews or restrictive networks).";
+      } else if(failed>0){
+        statusEl.textContent="Done — "+processed+" line(s) translated, "+failed+" line(s) couldn't be reached and were kept in the original language.";
+      } else if(truncated){
+        statusEl.textContent="Done — this document was long, so only the first "+MAX_LINES+" lines were translated.";
+      } else {
+        statusEl.textContent="Done — "+processed+" line(s) translated.";
+      }
+    }catch(err){ statusEl.textContent=err.message; }
+    goBtn.disabled=false; document.getElementById("tr-progress").style.display="none";
+  };
+}
+
+/* ---- PDF to Markdown ---- */
+function mountPdfToMarkdown(root){
+  let file=null;
+  root.innerHTML=`
+  <div class="workspace two-col">
+    <div class="card">
+      <div class="pdf-note"><b>What this does:</b> extracts text line by line and guesses structure from relative font size — bigger text becomes headings, lines starting with a bullet or number become lists, and URLs become clickable links. It won't reconstruct multi-column layouts or complex tables.</div>
+      <div id="dz-host"></div>
+      <div id="md-file" class="hint" style="margin-top:10px;"></div>
+      <div class="btn-row"><button class="btn" id="md-go" disabled>Convert &amp; Download</button></div>
+      <div id="md-status" class="hint"></div>
+    </div>
+    <div class="card"><h3>Preview</h3><div id="md-preview" class="doc-wrap"><div class="doc-empty">Upload a PDF to see the generated Markdown.</div></div></div>
+  </div>`;
+  mountDropzone(document.getElementById("dz-host"),{accept:"application/pdf",label:"Click to choose a PDF",onFiles:(fs)=>{
+    file=fs[0]; document.getElementById("md-file").textContent=file.name; document.getElementById("md-go").disabled=false;
+  }});
+  document.getElementById("md-go").onclick=async()=>{
+    const statusEl=document.getElementById("md-status"); const goBtn=document.getElementById("md-go");
+    goBtn.disabled=true; statusEl.textContent="Analysing layout...";
+    try{
+      const bytes=await readFileArrayBuffer(file);
+      const pdfjsDoc=await pdfjsGetDoc(bytes);
+      const md=await buildMarkdownFromPdf(pdfjsDoc);
+      document.getElementById("md-preview").innerHTML=`<pre style="white-space:pre-wrap;font-family:'IBM Plex Mono',monospace;font-size:12.5px;">${esc(md.slice(0,4000))}${md.length>4000?"\n…":""}</pre>`;
+      downloadBlobFile(file.name.replace(/\.pdf$/i,"")+".md", new Blob([md],{type:"text/markdown"}));
+      statusEl.textContent="Done — "+pdfjsDoc.numPages+" page(s) converted.";
+    }catch(err){ statusEl.textContent="Couldn't convert this file: "+err.message; }
+    goBtn.disabled=false;
+  };
+}
+
+
 const PDF_TOOL_HANDLERS = {
   "pdf-merge":{desc:"Combine two or more PDFs into one, in whatever order you like.", mount:mountPdfMerge},
   "pdf-split":{desc:"Pull pages out of a PDF — split into individual pages or custom ranges.", mount:mountPdfSplit},
@@ -4669,7 +5487,14 @@ const PDF_TOOL_HANDLERS = {
   "pdf-ocr":{desc:"Recognise text in a scanned PDF and make it searchable.", mount:mountPdfOcr},
   "pdf-to-pdfa":{desc:"Add PDF/A identification metadata as a first pass toward archival compliance.", mount:mountPdfToPdfA},
   "pdf-protect":{desc:"Add a password that's required to open the PDF.", mount:mountPdfProtect},
-  "pdf-unlock":{desc:"Remove standard PDF password protection.", mount:mountPdfUnlock}
+  "pdf-unlock":{desc:"Remove standard PDF password protection.", mount:mountPdfUnlock},
+  "pdf-compare":{desc:"Line up the text of two PDF versions and highlight what changed.", mount:mountPdfCompare},
+  "pdf-redact":{desc:"Draw boxes over sensitive content and permanently remove it from a PDF.", mount:mountPdfRedact},
+  "pdf-crop":{desc:"Drag-select an area and crop every page — or just one — to it.", mount:mountPdfCrop},
+  "pdf-forms":{desc:"Fill in a PDF's existing form fields, or add new text fields, checkboxes and dropdowns.", mount:mountPdfForms},
+  "ai-summarizer":{desc:"Condense a PDF or pasted text into a short summary and key points, on-device.", mount:mountAiSummarizer},
+  "pdf-translate":{desc:"Translate a PDF's text into another language while keeping images and layout close to the original.", mount:mountPdfTranslate},
+  "pdf-to-md":{desc:"Convert a PDF into a Markdown file, inferring headings, lists and links.", mount:mountPdfToMarkdown}
 };
 
 /* ============================= INIT ============================= */
